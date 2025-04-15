@@ -18,7 +18,7 @@ func NewPrepareCommand(logger logging.Logger, ctx context.Context) *cobra.Comman
 		Run: func(cmd *cobra.Command, args []string) {
 			// Get the command context, which is already connected to the global context
 			cmdCtx := cmd.Context()
-			
+
 			// Check if the context is already done (e.g., CTRL+C was pressed before we even started)
 			select {
 			case <-cmdCtx.Done():
@@ -27,7 +27,7 @@ func NewPrepareCommand(logger logging.Logger, ctx context.Context) *cobra.Comman
 			default:
 				// Continue with preparation
 			}
-			
+
 			providerName := args[0]
 			logger.Info("Initializing preparation for " + providerName)
 
@@ -42,13 +42,13 @@ func NewPrepareCommand(logger logging.Logger, ctx context.Context) *cobra.Comman
 			// Create a channel for completion notification
 			done := make(chan struct{})
 			var prepErr error
-			
+
 			// Run the preparation in a goroutine so we can monitor for cancellation
 			go func() {
 				prepErr = p.Prepare()
 				close(done)
 			}()
-			
+
 			// Wait for either preparation to complete or context to be cancelled
 			select {
 			case <-done:

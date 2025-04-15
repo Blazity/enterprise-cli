@@ -4,15 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/blazity/enterprise-cli/cmd/enterprise"
-	"github.com/blazity/enterprise-cli/pkg/github"
 	"github.com/blazity/enterprise-cli/pkg/logging"
-	"github.com/charmbracelet/log"
 )
 
 // Global context that can be used to propagate cancellation
@@ -24,38 +21,11 @@ func main() {
 	GlobalCtx, GlobalCancel = context.WithCancel(context.Background())
 	defer GlobalCancel()
 
-	// Set up the charmbracelet logger
-	logger := logging.NewLogger()
+	// Initialize the logger
+	logger := enterprise.InitializeLogger(false) // Default to non-verbose; can be updated by flags
 
 	// Handle signals for graceful shutdown
 	setupSignalHandling(logger)
-
-	// Check if Git is installed
-	_, err := exec.LookPath("git")
-	if err != nil {
-		logger.Error("Git is not installed. Please install Git to use this CLI.")
-		os.Exit(1)
-	}
-
-	// Check if current directory is a Git repository
-	if _, err := os.Stat(".git"); os.IsNotExist(err) {
-		logger.Error("Current directory is not a Git repository. Please run this CLI from a Git repository.")
-		os.Exit(1)
-	}
-
-	// Check GitHub CLI authentication
-	authStatus := github.CheckAuthStatus()
-	if !authStatus.CliInstalled {
-		logger.Error("GitHub CLI is not installed. This tool requires GitHub CLI.")
-		logger.Info("To install GitHub CLI, visit: https://cli.github.com/")
-		os.Exit(1)
-	} else if !authStatus.IsAuthenticated {
-		logger.Error("Not authenticated with GitHub CLI. This tool requires GitHub authentication.")
-		logger.Info("To authenticate, run: gh auth login")
-		os.Exit(1)
-	} else {
-		logger.Debug("Authenticated with GitHub as " + authStatus.Username)
-	}
 
 	// Create and execute the CLI commands
 	cmd := enterprise.NewEnterpriseCommand(logger, GlobalCtx, GlobalCancel)
@@ -88,8 +58,8 @@ func setupSignalHandling(logger logging.Logger) {
 		fmt.Print("\r\033[K")
 
 		// Log message
-		log.Info("Received signal", "signal", sig.String())
-		log.Info("Cancelling operations...")
+		logger.Info("Received signal: " + sig.String())
+		logger.Info("Cancelling operations...")
 
 		// Cancel the context to propagate cancellation to all operations
 		GlobalCancel()
@@ -105,9 +75,9 @@ func setupSignalHandling(logger logging.Logger) {
 		// Wait for cleanup or timeout
 		select {
 		case <-cleanup:
-			log.Info("Graceful shutdown completed")
+			logger.Info("Graceful shutdown completed")
 		case <-time.After(2 * time.Second):
-			log.Warn("Cleanup timed out, forcing exit")
+			logger.Warning("Cleanup timed out, forcing exit")
 		}
 
 		os.Exit(1)

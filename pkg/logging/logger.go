@@ -19,26 +19,27 @@ type logger struct {
 	log     *log.Logger
 }
 
-func NewLogger() Logger {
+func NewLogger(verbose bool) Logger {
 	l := log.NewWithOptions(os.Stderr, log.Options{
-		ReportCaller:    false,
-		ReportTimestamp: false,
+		ReportCaller:    verbose,
+		ReportTimestamp: true,
 		Level:           log.InfoLevel,
 	})
 
+	// Set debug level if verbose mode is enabled
+	if verbose {
+		l.SetLevel(log.DebugLevel)
+	}
+
 	return &logger{
-		verbose: false,
+		verbose: verbose,
 		log:     l,
 	}
 }
 
+// Keeping the function for backward compatibility, but it just calls NewLogger
 func NewLoggerWithVerbose(verbose bool) Logger {
-	l := NewLogger().(*logger)
-	l.verbose = verbose
-	if verbose {
-		l.log.SetLevel(log.DebugLevel)
-	}
-	return l
+	return NewLogger(verbose)
 }
 
 func (l *logger) Info(message string) {
