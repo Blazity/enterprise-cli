@@ -9,15 +9,15 @@ import (
 )
 
 type AuthStatus struct {
-	CliInstalled   bool
+	CliInstalled    bool
 	IsAuthenticated bool
-	Username       string
-	Error          error
+	Username        string
+	Error           error
 }
 
 func CheckAuthStatus() AuthStatus {
 	status := AuthStatus{
-		CliInstalled:   false,
+		CliInstalled:    false,
 		IsAuthenticated: false,
 	}
 
@@ -37,18 +37,25 @@ func CheckAuthStatus() AuthStatus {
 	}
 
 	output := stdout.String()
-	
+
 	// Parse output to check authentication
 	if strings.Contains(output, "Logged in") {
 		status.IsAuthenticated = true
-		
+
 		// Extract username from the output
 		lines := strings.Split(output, "\n")
 		for _, line := range lines {
-			if strings.Contains(line, "Logged in to") && strings.Contains(line, "as") {
-				parts := strings.Split(line, "as")
+			// Handle the format: "✓ Logged in to github.com account neg4n (keyring)"
+			if strings.Contains(line, "Logged in to") && strings.Contains(line, "account") {
+				// Split by "account" and get the second part
+				parts := strings.Split(line, "account")
 				if len(parts) >= 2 {
+					// Extract username, which is between "account" and potential "(keyring)"
 					username := strings.TrimSpace(parts[1])
+					// Remove anything in parentheses if present
+					if idx := strings.Index(username, "("); idx > 0 {
+						username = strings.TrimSpace(username[:idx])
+					}
 					status.Username = username
 					break
 				}

@@ -114,10 +114,51 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewInput().
+			huh.NewSelect[string]().
 				Title("AWS Region").
-				Description("The AWS region to deploy to").
-				Placeholder("us-west-2").
+				Description("The AWS region to deploy").
+				Options(
+					// US Regions
+					huh.NewOption("US East (N. Virginia)", "us-east-1"),
+					huh.NewOption("US East (Ohio)", "us-east-2"),
+					huh.NewOption("US West (N. California)", "us-west-1"),
+					huh.NewOption("US West (Oregon)", "us-west-2"),
+					huh.NewOption("Canada (Central)", "ca-central-1"),
+					huh.NewOption("Canada West (Calgary)", "ca-west-1"),
+					huh.NewOption("AWS GovCloud (US-East)", "us-gov-east-1"),
+					huh.NewOption("AWS GovCloud (US-West)", "us-gov-west-1"),
+					// Europe Regions
+					huh.NewOption("Europe (Ireland)", "eu-west-1"),
+					huh.NewOption("Europe (London)", "eu-west-2"),
+					huh.NewOption("Europe (Paris)", "eu-west-3"),
+					huh.NewOption("Europe (Frankfurt)", "eu-central-1"),
+					huh.NewOption("Europe (Zurich)", "eu-central-2"),
+					huh.NewOption("Europe (Stockholm)", "eu-north-1"),
+					huh.NewOption("Europe (Milan)", "eu-south-1"),
+					huh.NewOption("Europe (Spain)", "eu-south-2"),
+					// Other Regions
+					huh.NewOption("Africa (Cape Town)", "af-south-1"),
+					huh.NewOption("Asia Pacific (Hong Kong)", "ap-east-1"),
+					huh.NewOption("Asia Pacific (Tokyo)", "ap-northeast-1"),
+					huh.NewOption("Asia Pacific (Seoul)", "ap-northeast-2"),
+					huh.NewOption("Asia Pacific (Osaka)", "ap-northeast-3"),
+					huh.NewOption("Asia Pacific (Mumbai)", "ap-south-1"),
+					huh.NewOption("Asia Pacific (Hyderabad)", "ap-south-2"),
+					huh.NewOption("Asia Pacific (Singapore)", "ap-southeast-1"),
+					huh.NewOption("Asia Pacific (Sydney)", "ap-southeast-2"),
+					huh.NewOption("Asia Pacific (Jakarta)", "ap-southeast-3"),
+					huh.NewOption("Asia Pacific (Melbourne)", "ap-southeast-4"),
+					huh.NewOption("Asia Pacific (Malaysia)", "ap-southeast-5"),
+					huh.NewOption("Asia Pacific (Thailand)", "ap-southeast-7"),
+					huh.NewOption("China (Beijing)", "cn-north-1"),
+					huh.NewOption("China (Ningxia)", "cn-northwest-1"),
+					huh.NewOption("Israel (Tel Aviv)", "il-central-1"),
+					huh.NewOption("Middle East (UAE)", "me-central-1"),
+					huh.NewOption("Middle East (Bahrain)", "me-south-1"),
+					huh.NewOption("Mexico (Central)", "mx-central-1"),
+					huh.NewOption("South America (Sao Paulo)", "sa-east-1"),
+				).
+				Height(8).
 				Value(&p.region),
 			huh.NewInput().
 				Title("Repository Name").
@@ -126,10 +167,11 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 				Value(&p.repositoryName),
 			huh.NewSelect[string]().
 				Title("Repository Owner").
-				Description("GitHub organization or username for the new repository").
+				Description("GitHub organization or username for the new repository\n").
 				Options(
 					huh.NewOptions(organizations...)...,
 				).
+				Height(8).
 				Value(&p.organization),
 			huh.NewConfirm().
 				Title("Private Repository?").

@@ -10,8 +10,8 @@ var (
 			Bold(true)
 
 	ErrorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E74C3C")).
-		Bold(true)
+			Foreground(lipgloss.Color("#E74C3C")).
+			Bold(true)
 
 	HeaderStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#3498DB")).
@@ -26,19 +26,25 @@ var (
 	HighlightStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#F39C12")).
 			Bold(true)
-			
+
 	// Form styles for improved TUI
 	FormTitleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#3498DB")).
 			Bold(true)
-	
+
 	FormDescriptionStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7F8C8D")).
-			Italic(true)
-			
+				Foreground(lipgloss.Color("#7F8C8D")).
+				Italic(true)
+
 	FormFocusedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#F39C12")).
-			Bold(true)
+				Foreground(lipgloss.Color("#F39C12")).
+				Bold(true)
+
+	// Style for scrollable indicators
+	ScrollableIndicatorStyle = lipgloss.NewStyle().
+					Foreground(lipgloss.Color("#95A5A6")).
+					Italic(false).
+					Faint(false)
 )
 
 func Success(s string) string {
@@ -59,4 +65,9 @@ func SubHeader(s string) string {
 
 func Highlight(s string) string {
 	return HighlightStyle.Render(s)
+}
+
+// ScrollableIndicator returns a styled scrollable indicator string
+func ScrollableIndicator(s string) string {
+	return ScrollableIndicatorStyle.Render(s)
 }
