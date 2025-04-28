@@ -28,13 +28,11 @@ func GetOrganizations(logger logging.Logger) ([]string, error) {
 
 	authStatus := CheckAuthStatus()
 	if authStatus.IsAuthenticated && authStatus.Username != "" {
-		// Add the user's personal account as the first option
 		username := authStatus.Username
 		logger.Debug(fmt.Sprintf("Adding current user %s to organization options", username))
 		orgs = append(orgs, username)
 	}
 
-	// Parse organization names
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line != "" && !strings.HasPrefix(line, "Showing") {

@@ -65,7 +65,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	cancelled := ctx.Done()
 
-	// Helper to check cancellation (relies on ctx.Done())
 	checkCancelled := func() bool {
 		select {
 		case <-cancelled:
@@ -76,7 +75,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		}
 	}
 
-	// Keep check at the start
 	if checkCancelled() {
 		p.logger.Info("Operation was cancelled before starting AWS preparation")
 		return fmt.Errorf("operation cancelled by user")
@@ -96,20 +94,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	}
 
 	p.organization = organizations[0]
-	authStatus := github.CheckAuthStatus()
-	if authStatus.IsAuthenticated && authStatus.Username != "" {
-		hasUser := false
-		for _, org := range organizations {
-			if org == authStatus.Username {
-				hasUser = true
-				break
-			}
-		}
-		if !hasUser {
-			p.logger.Debug(fmt.Sprintf("Adding current user %s to organization options", authStatus.Username))
-			organizations = append([]string{authStatus.Username}, organizations...)
-		}
-	}
 	p.isPrivate = true
 
 	form := huh.NewForm(
@@ -230,11 +214,13 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		SkipPull:   true,
 	}
 
-	if err := github.CreateBranch(branchOpts, p.logger); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to create branch: %s", err))
+	actualBranchName, err := github.CreateBranch(branchOpts, p.logger)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Failed to create or checkout branch: %s", err))
 		cleanup(p)
 		return err
 	}
+	p.logger.Info(fmt.Sprintf("Successfully prepared branch: %s", actualBranchName))
 
 	p.logger.Info("Copying files from boilerplate...")
 
@@ -249,9 +235,16 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.logger.Info("Creating a new GitHub repository...")
 
-	repoFullName := fmt.Sprintf("%s/%s", p.organization, p.repositoryName)
+	repoNameForCreation := ""
+	repoFullName :=
+		fmt.Sprintf("%s/%s", p.organization, p.repositoryName)
+	if p.organization == github.CheckAuthStatus().Username {
+		repoNameForCreation = p.repositoryName
+	} else {
+		repoNameForCreation = repoFullName
+	}
 
-	createArgs := []string{"repo", "create", repoFullName}
+	createArgs := []string{"repo", "create", repoNameForCreation}
 
 	if p.isPrivate {
 		createArgs = append(createArgs, "--private")
@@ -261,7 +254,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.logger.Info(fmt.Sprintf("Creating %s repository: %s",
 		map[bool]string{true: "private", false: "public"}[p.isPrivate],
-		repoFullName))
+		repoNameForCreation))
 
 	stdout, stderr, err := gh.Exec(createArgs...)
 	if err != nil {
@@ -363,7 +356,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.logger.Info(fmt.Sprintf("Pushing changes to %s...", repoFullName))
 
-	if err := github.PushBranch(".", branchName, remoteName, p.logger); err != nil {
+	if err := github.PushBranch(".", actualBranchName, remoteName, p.logger); err != nil {
 		p.logger.Error(fmt.Sprintf("Failed to push changes: %s", err))
 		cleanup(p)
 		return err
