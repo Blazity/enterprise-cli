@@ -11,7 +11,7 @@ import (
 // GetOrganizations returns a list of organizations the user belongs to
 func GetOrganizations(logger logging.Logger) ([]string, error) {
 	logger.Debug("Fetching organizations...")
-	
+
 	// Execute gh org list
 	stdout, stderr, err := gh.Exec("org", "list")
 	if err != nil {
@@ -19,16 +19,13 @@ func GetOrganizations(logger logging.Logger) ([]string, error) {
 		logger.Error(stderr.String())
 		return nil, err
 	}
-	
+
 	output := stdout.String()
-	
-	// Parse the output
+
 	var orgs []string
-	
-	// Skip the first two lines (title and blank line)
+
 	lines := strings.Split(output, "\n")
-	
-	// Get the username and add it as the first option
+
 	authStatus := CheckAuthStatus()
 	if authStatus.IsAuthenticated && authStatus.Username != "" {
 		// Add the user's personal account as the first option
@@ -36,7 +33,7 @@ func GetOrganizations(logger logging.Logger) ([]string, error) {
 		logger.Debug(fmt.Sprintf("Adding current user %s to organization options", username))
 		orgs = append(orgs, username)
 	}
-	
+
 	// Parse organization names
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -44,8 +41,8 @@ func GetOrganizations(logger logging.Logger) ([]string, error) {
 			orgs = append(orgs, line)
 		}
 	}
-	
+
 	logger.Debug(fmt.Sprintf("Found %d organizations", len(orgs)))
-	
+
 	return orgs, nil
 }

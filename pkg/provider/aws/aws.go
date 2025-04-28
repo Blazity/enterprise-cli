@@ -227,6 +227,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		Path:       ".",
 		BranchName: branchName,
 		BaseBranch: "main",
+		SkipPull:   true,
 	}
 
 	if err := github.CreateBranch(branchOpts, p.logger); err != nil {
@@ -282,7 +283,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 			huh.NewInput().
 				Title("AWS Secret Access Key").
 				Description("Your AWS secret key").
-				Password(true).
+				EchoMode(huh.EchoModePassword).
 				Value(&p.secretAccessKey),
 		),
 	)

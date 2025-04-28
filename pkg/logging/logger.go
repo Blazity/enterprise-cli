@@ -10,7 +10,7 @@ type Logger interface {
 	Info(message string)
 	Warning(message string)
 	Error(message string)
-	Debug(message string)
+	Debug(message interface{})
 	IsVerbose() bool
 }
 
@@ -54,7 +54,7 @@ func (l *logger) Error(message string) {
 	l.log.Error(message)
 }
 
-func (l *logger) Debug(message string) {
+func (l *logger) Debug(message interface{}) {
 	if l.verbose {
 		l.log.Debug(message)
 	}

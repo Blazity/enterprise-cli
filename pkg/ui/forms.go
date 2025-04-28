@@ -32,7 +32,6 @@ var DefaultKeyMap = KeyMap{
 	),
 }
 
-// NEW: Define a specific error for user cancellation
 var ErrFormCancelled = errors.New("operation cancelled by user")
 
 type FormModel struct {
@@ -40,17 +39,15 @@ type FormModel struct {
 	keyMap       KeyMap
 	help         help.Model
 	logger       logging.Logger
-	cancel       context.CancelFunc // NEW: Store cancel func
-	wasCancelled bool               // NEW: Track if the form was cancelled by the user
+	cancel       context.CancelFunc
+	wasCancelled bool
 }
 
-// NEW: Add a method to check if cancelled
 func (m FormModel) WasCancelled() bool {
 	return m.wasCancelled
 }
 
 func NewFormModel(form *huh.Form, logger logging.Logger, cancel context.CancelFunc) FormModel {
-	// Apply custom styling to the form
 	styledForm := form.
 		WithTheme(huh.ThemeCharm()).
 		WithShowHelp(true).
@@ -61,7 +58,7 @@ func NewFormModel(form *huh.Form, logger logging.Logger, cancel context.CancelFu
 		keyMap: DefaultKeyMap,
 		help:   help.New(),
 		logger: logger,
-		cancel: cancel, // Store it
+		cancel: cancel,
 	}
 }
 
@@ -78,21 +75,21 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.logger.Debug("Form quit via 'q' key")
 			}
 			m.wasCancelled = true
-			if m.cancel != nil { // NEW: If cancel func exists
+			if m.cancel != nil {
 				m.logger.Debug("Calling global cancel function from form")
-				m.cancel() // Call it immediately
+				m.cancel()
 			}
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
-		// If window size changes, we might want to adjust the form
 		return m, nil
 	}
 
-	var cmd tea.Cmd
 	formModel, formCmd := m.form.Update(msg)
+	m.logger.Debug(m.form)
+	m.logger.Debug(formModel)
+	m.logger.Debug(formCmd)
 
-	// If the form was exited through other means
 	if formModel == nil {
 		if m.logger != nil {
 			m.logger.Info("Form exited unexpectedly")
@@ -101,8 +98,17 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.form = formModel.(*huh.Form)
-	cmd = formCmd
-	return m, cmd
+
+	// When the form is completed, log it but don't immediately quit
+	// This lets the program exit naturallyhttps://github.com/charmbracelet/huh with the form results
+	if m.form.State == huh.StateCompleted {
+		if m.logger != nil {
+			m.logger.Debug("Form completed successfully")
+		}
+		return m, tea.Quit
+	}
+
+	return m, formCmd
 }
 
 func (m FormModel) View() string {
