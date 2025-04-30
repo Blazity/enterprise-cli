@@ -6,6 +6,7 @@ import (
 
 	"github.com/blazity/enterprise-cli/pkg/logging"
 	"github.com/blazity/enterprise-cli/pkg/provider"
+	"github.com/blazity/enterprise-cli/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +30,7 @@ func NewPrepareCommand(logger logging.Logger, ctx context.Context) *cobra.Comman
 			}
 
 			providerName := args[0]
-			logger.Info("Initializing preparation for " + providerName)
+			logger.Info("Preparing the " + ui.LegibleProviderName(providerName) + " provider")
 
 			p, exists := provider.Get(providerName, logger)
 			if !exists {

@@ -56,8 +56,6 @@ func (p *AwsProvider) Prepare() error {
 }
 
 func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
-	p.logger.Info("Preparing AWS deployment...")
-
 	if ctx == nil {
 		p.logger.Error("Context is nil, using background context as fallback")
 		ctx = context.Background()
@@ -80,7 +78,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return fmt.Errorf("operation cancelled by user")
 	}
 
-	p.logger.Info("Collecting AWS and GitHub information...")
+	p.logger.Info("Collecting information...")
 	p.logger.Debug("Fetching available organizations...")
 	organizations, err := github.GetOrganizations(p.logger)
 	if err != nil {
@@ -95,6 +93,13 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.organization = organizations[0]
 	p.isPrivate = true
+
+	organizationsLength := 0
+	if len(organizations) > 8 {
+		organizationsLength = 8
+	} else {
+		organizationsLength = len(organizations)
+	}
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -155,7 +160,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 				Options(
 					huh.NewOptions(organizations...)...,
 				).
-				Height(8).
+				Height(organizationsLength).
 				Value(&p.organization),
 			huh.NewConfirm().
 				Title("Private Repository?").
@@ -176,7 +181,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	p.logger.Debug("Cloning the Enterprise boilerplate repository...")
+	p.logger.Debug("Cloning the next-enterprise boilerplate repository...")
 
 	if checkCancelled() {
 		return fmt.Errorf("operation cancelled before cloning")
@@ -200,10 +205,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	p.logger.Info("Boilerplate repository cloned successfully")
-
 	branchName := "enterprise-aws-setup"
-	p.logger.Info(fmt.Sprintf("Creating branch '%s' in the current repository...", branchName))
 
 	p.logger.Debug("Creating branch in the current repository...")
 
@@ -220,10 +222,11 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		cleanup(p)
 		return err
 	}
-	p.logger.Info(fmt.Sprintf("Successfully prepared branch: %s", actualBranchName))
+	p.logger.Info(fmt.Sprintf("Prepared branch: %s", actualBranchName))
 
 	p.logger.Info("Copying files from boilerplate...")
 
+	// TODO: Actual copying
 	if err := copyFile(
 		filepath.Join(p.tempDir, "README.md"),
 		filepath.Join(".", "README.md"),
@@ -232,8 +235,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		cleanup(p)
 		return err
 	}
-
-	p.logger.Info("Creating a new GitHub repository...")
 
 	repoNameForCreation := ""
 	repoFullName :=
@@ -252,7 +253,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		createArgs = append(createArgs, "--public")
 	}
 
-	p.logger.Info(fmt.Sprintf("Creating %s repository: %s",
+	p.logger.Info(fmt.Sprintf("Creating %s repository: %s on GitHub...",
 		map[bool]string{true: "private", false: "public"}[p.isPrivate],
 		repoNameForCreation))
 
@@ -323,15 +324,14 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.logger.Info("AWS credentials set as GitHub secrets")
 
-	p.logger.Info("Committing changes...")
-
+	// TODO: more appropiate commit
 	if err := github.CommitChanges(".", "Add files from Enterprise boilerplate", []string{"README.md"}, p.logger); err != nil {
 		p.logger.Error(fmt.Sprintf("Failed to commit changes: %s", err))
 		cleanup(p)
 		return err
 	}
 
-	p.logger.Info("Pushing changes to the new repository...")
+	p.logger.Info("Commited changes")
 
 	checkRemoteCmd := exec.Command("git", "-C", ".", "remote")
 	remoteOutput, _ := checkRemoteCmd.CombinedOutput()
@@ -354,16 +354,13 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	p.logger.Info(fmt.Sprintf("Pushing changes to %s...", repoFullName))
-
 	if err := github.PushBranch(".", actualBranchName, remoteName, p.logger); err != nil {
 		p.logger.Error(fmt.Sprintf("Failed to push changes: %s", err))
 		cleanup(p)
 		return err
 	}
 
-	p.logger.Info("Changes pushed successfully")
-	p.logger.Info(fmt.Sprintf("AWS deployment prepared in repository: %s", repoFullName))
+	p.logger.Info(fmt.Sprintf("%s deployment prepared in repository: %s on branch %s", ui.LegibleProviderName(p.GetName()), repoFullName, actualBranchName))
 
 	cleanup(p)
 
@@ -379,7 +376,6 @@ func (p *AwsProvider) DeployWithContext(ctx context.Context) error {
 
 	cancelled := ctx.Done()
 
-	// Helper to check cancellation
 	checkCancelled := func() bool {
 		select {
 		case <-cancelled:

@@ -86,9 +86,6 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	formModel, formCmd := m.form.Update(msg)
-	m.logger.Debug(m.form)
-	m.logger.Debug(formModel)
-	m.logger.Debug(formCmd)
 
 	if formModel == nil {
 		if m.logger != nil {

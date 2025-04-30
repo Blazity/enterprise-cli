@@ -119,9 +119,6 @@ func GetCurrentBranch(path string, logger logging.Logger) (string, error) {
 }
 
 func CommitChanges(path string, message string, files []string, logger logging.Logger) error {
-	logger.Info("Committing changes")
-
-	// Add specific files if provided, otherwise add all
 	var addCmd *exec.Cmd
 	if len(files) > 0 {
 		args := append([]string{"-C", path, "add"}, files...)
@@ -155,8 +152,6 @@ func CommitChanges(path string, message string, files []string, logger logging.L
 		logger.Debug(string(output))
 	}
 
-	logger.Info("Changes committed successfully")
-
 	return nil
 }
 
@@ -165,7 +160,7 @@ func PushBranch(path string, branch string, remote string, logger logging.Logger
 		remote = "origin"
 	}
 
-	logger.Info(fmt.Sprintf("Pushing branch %s to %s", branch, remote))
+	logger.Debug(fmt.Sprintf("Pushing branch %s to %s", branch, remote))
 
 	pushCmd := exec.Command("git", "-C", path, "push", "-u", remote, branch)
 	output, err := pushCmd.CombinedOutput()
@@ -179,7 +174,7 @@ func PushBranch(path string, branch string, remote string, logger logging.Logger
 		logger.Debug(string(output))
 	}
 
-	logger.Info("Branch pushed successfully")
+	logger.Debug("Branch pushed successfully")
 
 	return nil
 }

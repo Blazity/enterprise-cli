@@ -71,3 +71,21 @@ func Highlight(s string) string {
 func ScrollableIndicator(s string) string {
 	return ScrollableIndicatorStyle.Render(s)
 }
+
+func LegibleProviderName(providerName string) string {
+	displayNames := map[string]string{
+		"aws":   "AWS",
+		"azure": "Azure",
+		"gcp":   "GCP",
+	}
+
+	displayName, exists := displayNames[providerName]
+	if !exists {
+		displayName = providerName
+	}
+
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#3498DB")).
+		Bold(true).
+		Render(displayName)
+}

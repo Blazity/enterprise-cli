@@ -7,6 +7,7 @@ import (
 	"github.com/blazity/enterprise-cli/pkg/logging"
 	"github.com/blazity/enterprise-cli/pkg/provider"
 	"github.com/blazity/enterprise-cli/pkg/provider/aws"
+	"github.com/blazity/enterprise-cli/pkg/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -30,7 +31,7 @@ func NewDeployCommand(logger logging.Logger, ctx context.Context, cancel context
 			}
 
 			providerName := args[0]
-			logger.Info("Initializing deployment for " + providerName)
+			logger.Info("Preparing the deployment for " + ui.LegibleProviderName(providerName))
 
 			p, exists := provider.Get(providerName, logger)
 			if !exists {
