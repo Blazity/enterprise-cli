@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/blazity/enterprise-cli/pkg/codemod"
 	"github.com/blazity/enterprise-cli/pkg/github"
 	"github.com/blazity/enterprise-cli/pkg/logging"
 	"github.com/blazity/enterprise-cli/pkg/provider"
@@ -324,7 +325,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.logger.Info("AWS credentials set as GitHub secrets")
 
-	// TODO: more appropiate commit
+	// TODO: better commit message
 	if err := github.CommitChanges(".", "Add files from Enterprise boilerplate", []string{"README.md"}, p.logger); err != nil {
 		p.logger.Error(fmt.Sprintf("Failed to commit changes: %s", err))
 		cleanup(p)
@@ -361,6 +362,18 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	}
 
 	p.logger.Info(fmt.Sprintf("%s deployment prepared in repository: %s on branch %s", ui.LegibleProviderName(p.GetName()), repoFullName, actualBranchName))
+
+	p.logger.Info("Applying next.config.ts codemod...")
+	codemodCfg := codemod.NewDefaultConfig()
+	codemodCfg.InputPath = "next.config.ts" 
+	codemodCfg.CodemodName = "next-config"
+
+	if err := codemod.RunCodemod(codemodCfg); err != nil {
+		p.logger.Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
+		cleanup(p) // Ensure cleanup happens even if codemod fails
+		return fmt.Errorf("preparation succeeded, but failed to apply next-config codemod: %w", err)
+	}
+	p.logger.Info("Successfully applied next.config.ts codemod.")
 
 	cleanup(p)
 
