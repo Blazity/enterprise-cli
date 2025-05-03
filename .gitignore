@@ -23,5 +23,3 @@ go.work
 # Dependency directories
 vendor/
 
-enterprise
-enterprise-cli
