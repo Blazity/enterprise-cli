@@ -14,6 +14,7 @@ import (
 	"github.com/blazity/enterprise-cli/pkg/github"
 	"github.com/blazity/enterprise-cli/pkg/logging"
 	"github.com/blazity/enterprise-cli/pkg/provider"
+	"github.com/blazity/enterprise-cli/pkg/resources"
 	"github.com/blazity/enterprise-cli/pkg/ui"
 	"github.com/charmbracelet/huh"
 	"github.com/cli/go-gh"
@@ -25,14 +26,11 @@ func init() {
 
 type AwsProviderFactory struct{}
 
-func (f *AwsProviderFactory) Create(logger logging.Logger) provider.Provider {
-	return &AwsProvider{
-		logger: logger,
-	}
+func (f *AwsProviderFactory) Create() provider.Provider {
+	return &AwsProvider{}
 }
 
 type AwsProvider struct {
-	logger          logging.Logger
 	cancel          context.CancelFunc
 	region          string
 	accessKeyID     string
@@ -58,7 +56,7 @@ func (p *AwsProvider) Prepare() error {
 
 func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	if ctx == nil {
-		p.logger.Error("Context is nil, using background context as fallback")
+		logging.GetLogger().Error("Context is nil, using background context as fallback")
 		ctx = context.Background()
 	}
 
@@ -67,7 +65,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	checkCancelled := func() bool {
 		select {
 		case <-cancelled:
-			p.logger.Info("Operation cancelled via context")
+			logging.GetLogger().Info("Operation cancelled via context")
 			return true
 		default:
 			return false
@@ -75,20 +73,20 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	}
 
 	if checkCancelled() {
-		p.logger.Info("Operation was cancelled before starting AWS preparation")
+		logging.GetLogger().Info("Operation was cancelled before starting AWS preparation")
 		return fmt.Errorf("operation cancelled by user")
 	}
 
-	p.logger.Info("Collecting information...")
-	p.logger.Debug("Fetching available organizations...")
-	organizations, err := github.GetOrganizations(p.logger)
+	logging.GetLogger().Info("Collecting information...")
+	logging.GetLogger().Debug("Fetching available organizations...")
+	organizations, err := github.GetOrganizations()
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to fetch organizations: %s", err))
+		logging.GetLogger().Error(fmt.Sprintf("Failed to fetch organizations: %s", err))
 		return err
 	}
 
 	if len(organizations) == 0 {
-		p.logger.Error("No organizations found, and couldn't determine the username")
+		logging.GetLogger().Error("No organizations found, and couldn't determine the username")
 		return fmt.Errorf("no organizations found")
 	}
 
@@ -172,17 +170,17 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		),
 	)
 
-	if err := ui.RunForm(form, p.logger, p.cancel); err != nil {
+	if err := ui.RunForm(form, p.cancel); err != nil {
 		if errors.Is(err, ui.ErrFormCancelled) {
 			p.cancelled = true
-			p.logger.Info("Operation cancelled by user during configuration, aborting preparation.")
+			logging.GetLogger().Info("Operation cancelled by user during configuration, aborting preparation.")
 			return err
 		}
-		p.logger.Error("Failed to collect configuration information")
+		logging.GetLogger().Error("Failed to collect configuration information")
 		return err
 	}
 
-	p.logger.Debug("Cloning the next-enterprise boilerplate repository...")
+	logging.GetLogger().Debug("Cloning the next-enterprise boilerplate repository...")
 
 	if checkCancelled() {
 		return fmt.Errorf("operation cancelled before cloning")
@@ -190,25 +188,25 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	p.tempDir, err = os.MkdirTemp("", "enterprise-boilerplate-*")
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to create temporary directory: %s", err))
+		logging.GetLogger().Error(fmt.Sprintf("Failed to create temporary directory: %s", err))
 		return err
 	}
 
 	cloneOpts := github.CloneOptions{
-		Repository:  "blazity/next-enterprise",
+		Repository:  "blazity/next-enterprise-terraform",
 		Destination: p.tempDir,
 		Depth:       1,
 	}
 
-	if err := github.CloneRepository(cloneOpts, p.logger); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to clone boilerplate repository: %s", err))
+	if err := github.CloneRepository(cloneOpts); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to clone terraform repository: %s", err))
 		cleanup(p)
 		return err
 	}
 
 	branchName := "enterprise-aws-setup"
 
-	p.logger.Debug("Creating branch in the current repository...")
+	logging.GetLogger().Debug("Creating branch in the current repository...")
 
 	branchOpts := github.BranchOptions{
 		Path:       ".",
@@ -217,22 +215,22 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		SkipPull:   true,
 	}
 
-	actualBranchName, err := github.CreateBranch(branchOpts, p.logger)
+	actualBranchName, err := github.CreateBranch(branchOpts)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to create or checkout branch: %s", err))
+		logging.GetLogger().Error(fmt.Sprintf("Failed to create or checkout branch: %s", err))
 		cleanup(p)
 		return err
 	}
-	p.logger.Info(fmt.Sprintf("Prepared branch: %s", actualBranchName))
+	logging.GetLogger().Info(fmt.Sprintf("Prepared branch: %s", actualBranchName))
 
-	p.logger.Info("Copying files from boilerplate...")
+	logging.GetLogger().Info("Copying files from boilerplate...")
 
 	// TODO: Actual copying
 	if err := copyFile(
 		filepath.Join(p.tempDir, "README.md"),
 		filepath.Join(".", "README.md"),
 	); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to copy README.md: %s", err))
+		logging.GetLogger().Error(fmt.Sprintf("Failed to copy README.md: %s", err))
 		cleanup(p)
 		return err
 	}
@@ -254,19 +252,19 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		createArgs = append(createArgs, "--public")
 	}
 
-	p.logger.Info(fmt.Sprintf("Creating %s repository: %s on GitHub...",
+	logging.GetLogger().Info(fmt.Sprintf("Creating %s repository: %s on GitHub...",
 		map[bool]string{true: "private", false: "public"}[p.isPrivate],
 		repoNameForCreation))
 
 	stdout, stderr, err := gh.Exec(createArgs...)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to create repository: %s", err))
-		p.logger.Error(stderr.String())
+		logging.GetLogger().Error(fmt.Sprintf("Failed to create repository: %s", err))
+		logging.GetLogger().Error(stderr.String())
 		cleanup(p)
 		return err
 	}
 
-	p.logger.Info(fmt.Sprintf("Repository created: %s", strings.TrimSpace(stdout.String())))
+	logging.GetLogger().Info(fmt.Sprintf("Repository created: %s", strings.TrimSpace(stdout.String())))
 
 	awsForm := huh.NewForm(
 		huh.NewGroup(
@@ -283,24 +281,24 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		),
 	)
 
-	if err := ui.RunForm(awsForm, p.logger, p.cancel); err != nil {
+	if err := ui.RunForm(awsForm, p.cancel); err != nil {
 		if errors.Is(err, ui.ErrFormCancelled) {
 			p.cancelled = true
 			cleanup(p)
 			return err
 		}
-		p.logger.Error("Failed to collect AWS credentials")
+		logging.GetLogger().Error("Failed to collect AWS credentials")
 		cleanup(p)
 		return err
 	}
 
-	p.logger.Info("Setting AWS credentials as GitHub secrets...")
+	logging.GetLogger().Info("Setting AWS credentials as GitHub secrets...")
 
 	setAccessKeyArgs := []string{"secret", "set", "AWS_ACCESS_KEY_ID", "--body", p.accessKeyID, "--repo", repoFullName}
 	_, stderr, err = gh.Exec(setAccessKeyArgs...)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to set AWS_ACCESS_KEY_ID: %s", err))
-		p.logger.Error(stderr.String())
+		logging.GetLogger().Error(fmt.Sprintf("Failed to set AWS_ACCESS_KEY_ID: %s", err))
+		logging.GetLogger().Error(stderr.String())
 		cleanup(p)
 		return err
 	}
@@ -308,8 +306,8 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	setSecretKeyArgs := []string{"secret", "set", "AWS_SECRET_ACCESS_KEY", "--body", p.secretAccessKey, "--repo", repoFullName}
 	_, stderr, err = gh.Exec(setSecretKeyArgs...)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to set AWS_SECRET_ACCESS_KEY: %s", err))
-		p.logger.Error(stderr.String())
+		logging.GetLogger().Error(fmt.Sprintf("Failed to set AWS_SECRET_ACCESS_KEY: %s", err))
+		logging.GetLogger().Error(stderr.String())
 		cleanup(p)
 		return err
 	}
@@ -317,22 +315,22 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	setRegionArgs := []string{"secret", "set", "AWS_REGION", "--body", p.region, "--repo", repoFullName}
 	_, stderr, err = gh.Exec(setRegionArgs...)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to set AWS_REGION: %s", err))
-		p.logger.Error(stderr.String())
+		logging.GetLogger().Error(fmt.Sprintf("Failed to set AWS_REGION: %s", err))
+		logging.GetLogger().Error(stderr.String())
 		cleanup(p)
 		return err
 	}
 
-	p.logger.Info("AWS credentials set as GitHub secrets")
+	logging.GetLogger().Info("AWS credentials set as GitHub secrets")
 
 	// TODO: better commit message
-	if err := github.CommitChanges(".", "Add files from Enterprise boilerplate", []string{"README.md"}, p.logger); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to commit changes: %s", err))
+	if err := github.CommitChanges(".", "Add files from Enterprise boilerplate", []string{"README.md"}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
 		cleanup(p)
 		return err
 	}
 
-	p.logger.Info("Commited changes")
+	logging.GetLogger().Info("Commited changes")
 
 	checkRemoteCmd := exec.Command("git", "-C", ".", "remote")
 	remoteOutput, _ := checkRemoteCmd.CombinedOutput()
@@ -342,38 +340,51 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	if strings.Contains(string(remoteOutput), remoteName) {
 		removeRemoteCmd := exec.Command("git", "-C", ".", "remote", "remove", remoteName)
 		if output, err := removeRemoteCmd.CombinedOutput(); err != nil {
-			p.logger.Warning(fmt.Sprintf("Remote already exists but couldn't be removed: %s", string(output)))
+			logging.GetLogger().Warning(fmt.Sprintf("Remote already exists but couldn't be removed: %s", string(output)))
 			remoteName = "enterprise-aws-new"
 		}
 	}
 
-	addRemoteCmd := exec.Command("git", "-C", ".", "remote", "add", remoteName, fmt.Sprintf("https://github.com/%s.git", repoFullName))
-	if output, err := addRemoteCmd.CombinedOutput(); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to add remote: %s", err))
-		p.logger.Error(string(output))
-		cleanup(p)
-		return err
-	}
+	logging.GetLogger().Info(fmt.Sprintf("%s deployment prepared in repository: %s on branch %s", ui.LegibleProviderName(p.GetName()), repoFullName, actualBranchName))
 
-	if err := github.PushBranch(".", actualBranchName, remoteName, p.logger); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to push changes: %s", err))
-		cleanup(p)
-		return err
-	}
-
-	p.logger.Info(fmt.Sprintf("%s deployment prepared in repository: %s on branch %s", ui.LegibleProviderName(p.GetName()), repoFullName, actualBranchName))
-
-	p.logger.Info("Applying next.config.ts codemod...")
+	logging.GetLogger().Info("Applying next.config.ts codemod...")
 	codemodCfg := codemod.NewDefaultConfig()
-	codemodCfg.InputPath = "next.config.ts" 
+	codemodCfg.InputPath = "next.config.ts"
 	codemodCfg.CodemodName = "next-config"
 
 	if err := codemod.RunCodemod(codemodCfg); err != nil {
-		p.logger.Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
+		logging.GetLogger().Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
 		cleanup(p) // Ensure cleanup happens even if codemod fails
 		return fmt.Errorf("preparation succeeded, but failed to apply next-config codemod: %w", err)
 	}
-	p.logger.Info("Successfully applied next.config.ts codemod.")
+	logging.GetLogger().Info("Successfully applied next.config.ts codemod.")
+
+	resourceManager, err := resources.NewResourceManager(p.tempDir)
+	if err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to create resource manager: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	if err := resourceManager.CopyAllMappings(); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to copy mappings: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	addRemoteCmd := exec.Command("git", "-C", ".", "remote", "add", remoteName, fmt.Sprintf("https://github.com/%s.git", repoFullName))
+	if output, err := addRemoteCmd.CombinedOutput(); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to add remote: %s", err))
+		logging.GetLogger().Error(string(output))
+		cleanup(p)
+		return err
+	}
+
+	if err := github.PushBranch(".", actualBranchName, remoteName); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to push changes: %s", err))
+		cleanup(p)
+		return err
+	}
 
 	cleanup(p)
 
@@ -385,14 +396,14 @@ func (p *AwsProvider) Deploy() error {
 }
 
 func (p *AwsProvider) DeployWithContext(ctx context.Context) error {
-	p.logger.Info("Deploying to AWS...")
+	logging.GetLogger().Info("Deploying to AWS...")
 
 	cancelled := ctx.Done()
 
 	checkCancelled := func() bool {
 		select {
 		case <-cancelled:
-			p.logger.Info("Operation cancelled via context during deployment")
+			logging.GetLogger().Info("Operation cancelled via context during deployment")
 			return true
 		default:
 			return false
@@ -404,16 +415,16 @@ func (p *AwsProvider) DeployWithContext(ctx context.Context) error {
 		return fmt.Errorf("operation cancelled by user before deployment started")
 	}
 
-	p.logger.Info("AWS deployment completed successfully")
+	logging.GetLogger().Info("AWS deployment completed successfully")
 
 	return nil
 }
 
 func cleanup(p *AwsProvider) {
 	if p.tempDir != "" {
-		p.logger.Debug(fmt.Sprintf("Cleaning up temporary directory: %s", p.tempDir))
+		logging.GetLogger().Debug(fmt.Sprintf("Cleaning up temporary directory: %s", p.tempDir))
 		if err := os.RemoveAll(p.tempDir); err != nil {
-			p.logger.Warning(fmt.Sprintf("Failed to clean up temporary directory: %s", err))
+			logging.GetLogger().Warning(fmt.Sprintf("Failed to clean up temporary directory: %s", err))
 		}
 	}
 }

@@ -2,6 +2,7 @@ package logging
 
 import (
 	"os"
+	"sync"
 
 	"github.com/charmbracelet/log"
 )
@@ -22,8 +23,31 @@ type logger struct {
 	log     *log.Logger
 }
 
-// NewLogger creates a new logger instance.
-func NewLogger(verbose bool) Logger {
+// Singleton instance and initialization synchronization
+var (
+	instance Logger
+	once     sync.Once
+)
+
+// GetLogger returns the singleton logger instance
+func GetLogger() Logger {
+	once.Do(func() {
+		// Default initialization with non-verbose mode
+		instance = newLogger(false)
+	})
+	return instance
+}
+
+// InitLogger initializes the logger with specific settings
+// This should be called early in your application
+func InitLogger(verbose bool) {
+	once.Do(func() {
+		instance = newLogger(verbose)
+	})
+}
+
+// Private constructor (lowercase first letter)
+func newLogger(verbose bool) Logger {
 	l := log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    false, // Keep this false unless debugging the logger itself
 		ReportTimestamp: false,
@@ -45,11 +69,6 @@ func NewLogger(verbose bool) Logger {
 		verbose: verbose,
 		log:     l,
 	}
-}
-
-// Keeping the function for backward compatibility, but it just calls NewLogger
-func NewLoggerWithVerbose(verbose bool) Logger {
-	return NewLogger(verbose)
 }
 
 // Info logs an informational message.

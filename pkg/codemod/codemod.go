@@ -223,8 +223,9 @@ func prepareCommand(cfg *Config) (*exec.Cmd, error) {
 
 	cmd := exec.Command(npxPath, args...)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// Output is captured by runCommand now
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
 
 	return cmd, nil
 }
@@ -234,9 +235,13 @@ func runCommand(cmd *exec.Cmd, cfg *Config) error {
 		fmt.Printf("Executing codemod command: %s\n", strings.Join(cmd.Args, " "))
 	}
 
-	err := cmd.Run()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("jscodeshift process execution failed: %w", err)
+		return fmt.Errorf("jscodeshift process execution failed: %w\nOutput:\n%s", err, string(output))
+	}
+
+	if cfg.Verbose && len(output) > 0 {
+		fmt.Printf("Codemod Output:\n%s\n", string(output))
 	}
 
 	return nil

@@ -10,13 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewPrepareCommand(logger logging.Logger, ctx context.Context) *cobra.Command {
+func NewPrepareCommand(ctx context.Context) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "prepare [provider]",
 		Short: "Prepare infrastructure for enterprise deployment",
 		Long:  "Prepare infrastructure and collect configuration for enterprise deployment",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			logger := logging.GetLogger()
 			cmdCtx := cmd.Context()
 
 			select {
@@ -29,7 +30,7 @@ func NewPrepareCommand(logger logging.Logger, ctx context.Context) *cobra.Comman
 			providerName := args[0]
 			logger.Info("Preparing the " + ui.LegibleProviderName(providerName) + " provider")
 
-			p, exists := provider.Get(providerName, logger)
+			p, exists := provider.Get(providerName)
 			if !exists {
 				availableProviders := provider.ListAvailableProviders()
 				logger.Error("Provider not supported: " + providerName)

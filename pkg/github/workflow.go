@@ -19,7 +19,8 @@ type WorkflowRun struct {
 	UpdatedAt  string
 }
 
-func GetWorkflowRuns(repo string, branch string, logger logging.Logger) ([]WorkflowRun, error) {
+func GetWorkflowRuns(repo string, branch string) ([]WorkflowRun, error) {
+	logger := logging.GetLogger()
 	logger.Debug(fmt.Sprintf("Getting workflow runs for %s branch %s", repo, branch))
 
 	args := []string{"run", "list", "--repo", repo}
@@ -101,8 +102,9 @@ func GetWorkflowRuns(repo string, branch string, logger logging.Logger) ([]Workf
 	return runs, nil
 }
 
-func GetLatestWorkflowRun(repo string, branch string, logger logging.Logger) (*WorkflowRun, error) {
-	runs, err := GetWorkflowRuns(repo, branch, logger)
+func GetLatestWorkflowRun(repo string, branch string) (*WorkflowRun, error) {
+	logger := logging.GetLogger()
+	runs, err := GetWorkflowRuns(repo, branch)
 	if err != nil {
 		return nil, err
 	}
@@ -121,11 +123,12 @@ func GetLatestWorkflowRun(repo string, branch string, logger logging.Logger) (*W
 	return &latestRun, nil
 }
 
-func WaitForWorkflowRun(repo string, branch string, timeout time.Duration, logger logging.Logger) (*WorkflowRun, error) {
+func WaitForWorkflowRun(repo string, branch string, timeout time.Duration) (*WorkflowRun, error) {
+	logger := logging.GetLogger()
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		run, err := GetLatestWorkflowRun(repo, branch, logger)
+		run, err := GetLatestWorkflowRun(repo, branch)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +151,8 @@ func WaitForWorkflowRun(repo string, branch string, timeout time.Duration, logge
 	return nil, fmt.Errorf("timeout waiting for workflow run to complete")
 }
 
-func CancelWorkflowRun(runID string, repo string, logger logging.Logger) error {
+func CancelWorkflowRun(runID string, repo string) error {
+	logger := logging.GetLogger()
 	logger.Debug(fmt.Sprintf("Cancelling workflow run %s", runID))
 
 	args := []string{"run", "cancel", runID, "--repo", repo}
@@ -164,7 +168,8 @@ func CancelWorkflowRun(runID string, repo string, logger logging.Logger) error {
 	return nil
 }
 
-func GetWorkflowRunLogs(runID string, repo string, logger logging.Logger) (string, error) {
+func GetWorkflowRunLogs(runID string, repo string) (string, error) {
+	logger := logging.GetLogger()
 	logger.Debug(fmt.Sprintf("Getting logs for workflow run %s", runID))
 
 	// First, download logs to a temporary location
@@ -204,7 +209,8 @@ func ExtractRepoFromURL(url string) (string, error) {
 }
 
 // Get workflow run by ID
-func GetWorkflowRunByID(runID string, repo string, logger logging.Logger) (*WorkflowRun, error) {
+func GetWorkflowRunByID(runID string, repo string) (*WorkflowRun, error) {
+	logger := logging.GetLogger()
 	logger.Debug(fmt.Sprintf("Getting workflow run %s by ID", runID))
 
 	args := []string{"run", "view", runID, "--repo", repo, "--json", "databaseId,name,status,conclusion,url,createdAt,updatedAt"}

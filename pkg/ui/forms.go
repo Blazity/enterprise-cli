@@ -47,7 +47,8 @@ func (m FormModel) WasCancelled() bool {
 	return m.wasCancelled
 }
 
-func NewFormModel(form *huh.Form, logger logging.Logger, cancel context.CancelFunc) FormModel {
+func NewFormModel(form *huh.Form, cancel context.CancelFunc) FormModel {
+	logger := logging.GetLogger()
 	styledForm := form.
 		WithTheme(huh.ThemeCharm()).
 		WithShowHelp(true).
@@ -113,9 +114,9 @@ func (m FormModel) View() string {
 }
 
 // RunForm runs a form with simple CTRL+C handling
-func RunForm(form *huh.Form, logger logging.Logger, cancel context.CancelFunc) error {
+func RunForm(form *huh.Form, cancel context.CancelFunc) error {
 	// Configure tea.Program
-	model := NewFormModel(form, logger, cancel)
+	model := NewFormModel(form, cancel)
 
 	// Use a standard program without fancy options
 	program := tea.NewProgram(model)

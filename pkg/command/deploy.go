@@ -11,29 +11,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func NewDeployCommand(logger logging.Logger, ctx context.Context, cancel context.CancelFunc) *cobra.Command {
+func NewDeployCommand(ctx context.Context, cancel context.CancelFunc) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deploy [provider]",
 		Short: "Deploy enterprise infrastructure",
 		Long:  "Deploy enterprise infrastructure to the selected provider",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			logger := logging.GetLogger()
 			// Get the command context, which is already connected to the global context
-			cmdCtx := cmd.Context()
-
-			// Check if the context is already done (e.g., CTRL+C was pressed before we even started)
 			select {
-			case <-cmdCtx.Done():
+			case <-cmd.Context().Done():
 				logger.Info("Operation cancelled before it started")
 				return
 			default:
-				// Continue with deployment
 			}
 
 			providerName := args[0]
 			logger.Info("Preparing the deployment for " + ui.LegibleProviderName(providerName))
 
-			p, exists := provider.Get(providerName, logger)
+			p, exists := provider.Get(providerName)
 			if !exists {
 				availableProviders := provider.ListAvailableProviders()
 				logger.Error("Provider not supported: " + providerName)
@@ -42,7 +39,6 @@ func NewDeployCommand(logger logging.Logger, ctx context.Context, cancel context
 			}
 
 			// Set the cancel function on the provider if it's AWS
-			// TODO: Make this more generic if other providers need cancel func
 			if awsP, ok := p.(*aws.AwsProvider); ok {
 				awsP.SetCancelFunc(cancel)
 				logger.Debug("Cancel function set on AWS provider")
@@ -67,7 +63,7 @@ func NewDeployCommand(logger logging.Logger, ctx context.Context, cancel context
 					return
 				}
 				logger.Info("Deployment completed successfully")
-			case <-cmdCtx.Done():
+			case <-cmd.Context().Done():
 				// Context cancelled (CTRL+C was pressed)
 				logger.Info("Deployment cancelled, cleaning up...")
 				// Wait for the deployment to actually finish its cleanup

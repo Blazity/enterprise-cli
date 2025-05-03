@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-
-	"github.com/blazity/enterprise-cli/pkg/logging"
 )
 
 type Provider interface {
@@ -15,7 +13,7 @@ type Provider interface {
 }
 
 type ProviderFactory interface {
-	Create(logger logging.Logger) Provider
+	Create() Provider
 }
 
 var registry = make(map[string]ProviderFactory)
@@ -24,13 +22,13 @@ func Register(name string, factory ProviderFactory) {
 	registry[name] = factory
 }
 
-func Get(name string, logger logging.Logger) (Provider, bool) {
+func Get(name string) (Provider, bool) {
 	factory, exists := registry[name]
 	if !exists {
 		return nil, false
 	}
-	
-	return factory.Create(logger), true
+
+	return factory.Create(), true
 }
 
 func ListAvailableProviders() []string {

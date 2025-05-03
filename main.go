@@ -19,11 +19,13 @@ func main() {
 	GlobalCtx, GlobalCancel = context.WithCancel(context.Background())
 	defer GlobalCancel()
 
+	// Initialize the singleton logger
 	logger := enterprise.InitializeLogger(false)
 
-	setupSignalHandling(logger)
+	// Setup signal handling using the global logger
+	setupSignalHandling()
 
-	cmd := enterprise.NewEnterpriseCommand(logger, GlobalCtx, GlobalCancel)
+	cmd := enterprise.NewEnterpriseCommand(GlobalCtx, GlobalCancel)
 
 	select {
 	case <-GlobalCtx.Done():
@@ -37,7 +39,8 @@ func main() {
 	}
 }
 
-func setupSignalHandling(logger logging.Logger) {
+// setupSignalHandling registers OS signal handlers using the global logger
+func setupSignalHandling() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
@@ -46,6 +49,7 @@ func setupSignalHandling(logger logging.Logger) {
 
 		fmt.Print("\r\033[K")
 
+		logger := logging.GetLogger()
 		logger.Info("Received signal: " + sig.String())
 		logger.Info("Cancelling operations...")
 

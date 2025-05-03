@@ -29,23 +29,25 @@ type PRStatus struct {
 	Passing   bool
 }
 
-func PreparePullRequest(opts PROptions, logger logging.Logger) (string, error) {
+func PreparePullRequest(opts PROptions) (string, error) {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
 	logger.Debug("Preparing pull request")
 
 	// Commit changes if needed
 	if len(opts.ChangesToCommit) > 0 {
-		if err := CommitChanges(opts.ModifiedDestination, opts.CommitMessage, opts.ChangesToCommit, logger); err != nil {
+		if err := CommitChanges(opts.ModifiedDestination, opts.CommitMessage, opts.ChangesToCommit); err != nil {
 			return "", err
 		}
 	}
 
 	// Push branch if needed
-	currentBranch, err := GetCurrentBranch(opts.ModifiedDestination, logger)
+	currentBranch, err := GetCurrentBranch(opts.ModifiedDestination)
 	if err != nil {
 		return "", err
 	}
 
-	if err := PushBranch(opts.ModifiedDestination, currentBranch, "origin", logger); err != nil {
+	if err := PushBranch(opts.ModifiedDestination, currentBranch, "origin"); err != nil {
 		return "", err
 	}
 
@@ -92,7 +94,9 @@ func PreparePullRequest(opts PROptions, logger logging.Logger) (string, error) {
 	return prURL, nil
 }
 
-func CheckPRStatus(prURL string, logger logging.Logger) (PRStatus, error) {
+func CheckPRStatus(prURL string) (PRStatus, error) {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
 	status := PRStatus{
 		URL: prURL,
 	}
@@ -137,11 +141,13 @@ func CheckPRStatus(prURL string, logger logging.Logger) (PRStatus, error) {
 }
 
 // Wait for PR checks to complete with timeout
-func WaitForPRChecks(prURL string, timeout time.Duration, logger logging.Logger) (PRStatus, error) {
+func WaitForPRChecks(prURL string, timeout time.Duration) (PRStatus, error) {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
 	deadline := time.Now().Add(timeout)
 
 	for time.Now().Before(deadline) {
-		status, err := CheckPRStatus(prURL, logger)
+		status, err := CheckPRStatus(prURL)
 		if err != nil {
 			return status, err
 		}

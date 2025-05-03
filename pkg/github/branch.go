@@ -20,7 +20,10 @@ type BranchOptions struct {
 // CreateBranch ensures the desired branch exists and is checked out.
 // It appends a timestamp to BranchName if it doesn't already contain one.
 // Returns the actual final branch name used (potentially with timestamp) and an error if any.
-func CreateBranch(opts BranchOptions, logger logging.Logger) (string, error) {
+func CreateBranch(opts BranchOptions) (string, error) {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
+
 	// Calculate final branch name (append timestamp if needed)
 	timestamp := time.Now().Unix()
 	finalBranchName := opts.BranchName
@@ -105,7 +108,10 @@ func CreateBranch(opts BranchOptions, logger logging.Logger) (string, error) {
 	return "", fmt.Errorf("failed to create branch '%s': %w", finalBranchName, createErr)
 }
 
-func GetCurrentBranch(path string, logger logging.Logger) (string, error) {
+func GetCurrentBranch(path string) (string, error) {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
+
 	cmd := exec.Command("git", "-C", path, "branch", "--show-current")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -118,7 +124,10 @@ func GetCurrentBranch(path string, logger logging.Logger) (string, error) {
 	return branch, nil
 }
 
-func CommitChanges(path string, message string, files []string, logger logging.Logger) error {
+func CommitChanges(path string, message string, files []string) error {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
+
 	var addCmd *exec.Cmd
 	if len(files) > 0 {
 		args := append([]string{"-C", path, "add"}, files...)
@@ -155,7 +164,10 @@ func CommitChanges(path string, message string, files []string, logger logging.L
 	return nil
 }
 
-func PushBranch(path string, branch string, remote string, logger logging.Logger) error {
+func PushBranch(path string, branch string, remote string) error {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
+
 	if remote == "" {
 		remote = "origin"
 	}

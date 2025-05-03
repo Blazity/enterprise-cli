@@ -17,7 +17,10 @@ type CloneOptions struct {
 	Depth       int
 }
 
-func CloneRepository(opts CloneOptions, logger logging.Logger) error {
+func CloneRepository(opts CloneOptions) error {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
+
 	logger.Info(fmt.Sprintf("Cloning repository %s", opts.Repository))
 
 	// Build clone command arguments

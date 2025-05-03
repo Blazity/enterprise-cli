@@ -10,7 +10,8 @@ import (
 )
 
 // NewCodemodCommand creates the codemod command
-func NewCodemodCommand(logger logging.Logger, ctx context.Context) *cobra.Command {
+func NewCodemodCommand(ctx context.Context) *cobra.Command {
+	logger := logging.GetLogger()
 	cfg := codemod.NewDefaultConfig()
 
 	codemodCmd := &cobra.Command{

@@ -9,7 +9,9 @@ import (
 )
 
 // GetOrganizations returns a list of organizations the user belongs to
-func GetOrganizations(logger logging.Logger) ([]string, error) {
+func GetOrganizations() ([]string, error) {
+	// Retrieve global logger singleton
+	logger := logging.GetLogger()
 	logger.Debug("Fetching organizations...")
 
 	// Execute gh org list
