@@ -50,7 +50,6 @@ func SetRemote(path, name, url string) error {
 		logger.Error(string(out))
 		return fmt.Errorf("failed to set git remote URL for '%s': %w", name, setErr)
 	}
-	logger.Info("Updated git remote", "name", name, "url", url)
 	if logger.IsVerbose() {
 		logger.Debug(string(out))
 	}

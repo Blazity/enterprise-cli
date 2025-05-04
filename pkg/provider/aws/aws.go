@@ -271,7 +271,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info("Copied remaining resources to the local git repository", "paths", destinationPaths)
+	logging.GetLogger().Info("Copied remaining resources to the local git repository")
 
 	if err := github.CommitChanges(".", "chore(aws): add all remaining resources", destinationPaths); err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
@@ -308,7 +308,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info("Created remote repository on GitHub", "name", strings.TrimSpace(stdout.String()))
+	logging.GetLogger().Info("Created remote repository on GitHub", "url", strings.TrimSpace(stdout.String()))
 
 	remoteName := "origin"
 	remoteURL := fmt.Sprintf("https://github.com/%s.git", repoFullName)

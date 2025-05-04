@@ -20,7 +20,6 @@ type CloneOptions struct {
 func CloneRepository(opts CloneOptions) error {
 	logger := logging.GetLogger()
 
-	logger.Info(fmt.Sprintf("Cloning repository %s", opts.Repository))
 
 	args := []string{"repo", "clone"}
 

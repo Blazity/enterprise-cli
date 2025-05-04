@@ -66,7 +66,7 @@ func findUniqueMapYML(rootDir string) (string, string, error) {
 
 func NewResourceManager(rootDir string) (*ResourceManager, error) {
 	logger := logging.GetLogger()
-	logger.Info("Finding _map.yml file... in", "directory", rootDir)
+	logger.Debug("Finding _map.yml file... in", "directory", rootDir)
 	mapPath, configDir, err := findUniqueMapYML(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find _map.yml: %w", err)
