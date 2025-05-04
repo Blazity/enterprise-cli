@@ -42,9 +42,9 @@ func NewEnterpriseCommand(ctx context.Context, cancel context.CancelFunc) *cobra
 
 	rootCmd.AddCommand(command.NewPrepareCommand(ctx))
 	rootCmd.AddCommand(command.NewDeployCommand(ctx, cancel))
+	rootCmd.AddCommand(command.NewTestCommand(ctx))
 	rootCmd.AddCommand(command.NewCodemodCommand(ctx))
 
-	// Customize help template to show only commands
 	rootCmd.SetHelpTemplate(`{{.Short}}
 
 Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
@@ -56,15 +56,12 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.
 	return rootCmd
 }
 
-// InitializeLogger initializes the singleton logger with the specified verbosity level and returns it
 func InitializeLogger(verbose bool) logging.Logger {
 	logging.InitLogger(verbose)
 	return logging.GetLogger()
 }
 
-// performEarlyChecks runs validation checks needed before executing commands
 func performEarlyChecks() {
-	// Check if Git is installed
 	_, err := exec.LookPath("git")
 	if err != nil {
 		logger := logging.GetLogger()
@@ -72,14 +69,12 @@ func performEarlyChecks() {
 		os.Exit(1)
 	}
 
-	// Check if current directory is a Git repository
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
 		logger := logging.GetLogger()
 		logger.Error("Current directory is not a Git repository. Please run this CLI from a Git repository.")
 		os.Exit(1)
 	}
 
-	// Check GitHub CLI authentication
 	authStatus := github.CheckAuthStatus()
 	if !authStatus.CliInstalled {
 		logger := logging.GetLogger()

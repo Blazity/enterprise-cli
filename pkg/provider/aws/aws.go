@@ -106,7 +106,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 				Title("AWS Region").
 				Description("The AWS region to deploy").
 				Options(
-					// US Regions
 					huh.NewOption("US East (N. Virginia)", "us-east-1"),
 					huh.NewOption("US East (Ohio)", "us-east-2"),
 					huh.NewOption("US West (N. California)", "us-west-1"),
@@ -115,7 +114,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 					huh.NewOption("Canada West (Calgary)", "ca-west-1"),
 					huh.NewOption("AWS GovCloud (US-East)", "us-gov-east-1"),
 					huh.NewOption("AWS GovCloud (US-West)", "us-gov-west-1"),
-					// Europe Regions
 					huh.NewOption("Europe (Ireland)", "eu-west-1"),
 					huh.NewOption("Europe (London)", "eu-west-2"),
 					huh.NewOption("Europe (Paris)", "eu-west-3"),
@@ -124,7 +122,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 					huh.NewOption("Europe (Stockholm)", "eu-north-1"),
 					huh.NewOption("Europe (Milan)", "eu-south-1"),
 					huh.NewOption("Europe (Spain)", "eu-south-2"),
-					// Other Regions
 					huh.NewOption("Africa (Cape Town)", "af-south-1"),
 					huh.NewOption("Asia Pacific (Hong Kong)", "ap-east-1"),
 					huh.NewOption("Asia Pacific (Tokyo)", "ap-northeast-1"),
@@ -225,7 +222,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	logging.GetLogger().Info("Copying files from boilerplate...")
 
-	// TODO: Actual copying
 	if err := copyFile(
 		filepath.Join(p.tempDir, "README.md"),
 		filepath.Join(".", "README.md"),
@@ -323,7 +319,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	logging.GetLogger().Info("AWS credentials set as GitHub secrets")
 
-	// TODO: better commit message
 	if err := github.CommitChanges(".", "Add files from Enterprise boilerplate", []string{"README.md"}); err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
 		cleanup(p)
@@ -354,7 +349,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	if err := codemod.RunCodemod(codemodCfg); err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
-		cleanup(p) // Ensure cleanup happens even if codemod fails
+		cleanup(p)
 		return fmt.Errorf("preparation succeeded, but failed to apply next-config codemod: %w", err)
 	}
 	logging.GetLogger().Info("Successfully applied next.config.ts codemod.")
@@ -373,6 +368,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	}
 
 	addRemoteCmd := exec.Command("git", "-C", ".", "remote", "add", remoteName, fmt.Sprintf("https://github.com/%s.git", repoFullName))
+
 	if output, err := addRemoteCmd.CombinedOutput(); err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to add remote: %s", err))
 		logging.GetLogger().Error(string(output))
@@ -410,7 +406,6 @@ func (p *AwsProvider) DeployWithContext(ctx context.Context) error {
 		}
 	}
 
-	// Keep check at the start of deployment
 	if checkCancelled() {
 		return fmt.Errorf("operation cancelled by user before deployment started")
 	}

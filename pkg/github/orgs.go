@@ -8,13 +8,10 @@ import (
 	"github.com/cli/go-gh"
 )
 
-// GetOrganizations returns a list of organizations the user belongs to
 func GetOrganizations() ([]string, error) {
-	// Retrieve global logger singleton
 	logger := logging.GetLogger()
 	logger.Debug("Fetching organizations...")
 
-	// Execute gh org list
 	stdout, stderr, err := gh.Exec("org", "list")
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to fetch organizations: %s", err))

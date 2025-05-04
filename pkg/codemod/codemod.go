@@ -198,7 +198,6 @@ func listAvailableTransforms(codemodAbsPath string) string {
 	return builder.String()
 }
 
-// prepareCommand constructs the *exec.Cmd for jscodeshift to be executed via npx.
 func prepareCommand(cfg *Config) (*exec.Cmd, error) {
 	npxPath, err := exec.LookPath("npx")
 	if err != nil {
@@ -223,9 +222,6 @@ func prepareCommand(cfg *Config) (*exec.Cmd, error) {
 
 	cmd := exec.Command(npxPath, args...)
 
-	// Output is captured by runCommand now
-	// cmd.Stdout = os.Stdout
-	// cmd.Stderr = os.Stderr
 
 	return cmd, nil
 }

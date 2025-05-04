@@ -27,7 +27,6 @@ var (
 			Foreground(lipgloss.Color("#F39C12")).
 			Bold(true)
 
-	// Form styles for improved TUI
 	FormTitleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#3498DB")).
 			Bold(true)
@@ -40,7 +39,6 @@ var (
 				Foreground(lipgloss.Color("#F39C12")).
 				Bold(true)
 
-	// Style for scrollable indicators
 	ScrollableIndicatorStyle = lipgloss.NewStyle().
 					Foreground(lipgloss.Color("#95A5A6")).
 					Italic(false).
@@ -67,7 +65,6 @@ func Highlight(s string) string {
 	return HighlightStyle.Render(s)
 }
 
-// ScrollableIndicator returns a styled scrollable indicator string
 func ScrollableIndicator(s string) string {
 	return ScrollableIndicatorStyle.Render(s)
 }

@@ -7,15 +7,13 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-// Logger defines the interface for logging operations.
-// It includes standard levels and a custom Success level.
 type Logger interface {
-	Info(message string, keyvals ...interface{})       // Added keyvals for structured logging
-	Warning(message string, keyvals ...interface{})    // Added keyvals
-	Error(message string, keyvals ...interface{})      // Added keyvals
-	Debug(message interface{}, keyvals ...interface{}) // Added keyvals
+	Info(message string, keyvals ...interface{})
+	Warning(message string, keyvals ...interface{})
+	Error(message string, keyvals ...interface{})
+	Debug(message interface{}, keyvals ...interface{})
 	IsVerbose() bool
-	SetVerbose(verbose bool) // New method for dynamic verbosity
+	SetVerbose(verbose bool)
 }
 
 type logger struct {
@@ -23,45 +21,37 @@ type logger struct {
 	log     *log.Logger
 }
 
-// Singleton instance and initialization synchronization
 var (
 	instance Logger
 	once     sync.Once
 )
 
-// GetLogger returns the singleton logger instance
 func GetLogger() Logger {
 	once.Do(func() {
-		// Default initialization with non-verbose mode
 		instance = newLogger(false)
 	})
 	return instance
 }
 
-// InitLogger initializes the logger with specific settings
-// This should be called early in your application
 func InitLogger(verbose bool) {
 	once.Do(func() {
 		instance = newLogger(verbose)
 	})
 }
 
-// Private constructor (lowercase first letter)
 func newLogger(verbose bool) Logger {
 	l := log.NewWithOptions(os.Stderr, log.Options{
-		ReportCaller:    false, // Keep this false unless debugging the logger itself
+		ReportCaller:    false,
 		ReportTimestamp: false,
 		Level:           log.InfoLevel,
-		Prefix:          "", // Remove default prefix if any
+		Prefix:          "",
 	})
 
-	// Set debug level if verbose mode is enabled
 	if verbose {
 		l.SetLevel(log.DebugLevel)
 		l.SetReportTimestamp(true)
 	}
 
-	// Customize styles
 	styles := log.DefaultStyles()
 	l.SetStyles(styles)
 
@@ -71,29 +61,26 @@ func newLogger(verbose bool) Logger {
 	}
 }
 
-// Info logs an informational message.
 func (l *logger) Info(message string, keyvals ...interface{}) {
+	l.log.Helper()
 	l.log.Info(message, keyvals...)
 }
 
-// Warning logs a warning message.
 func (l *logger) Warning(message string, keyvals ...interface{}) {
+	l.log.Helper()
 	l.log.Warn(message, keyvals...)
 }
 
-// Error logs an error message.
 func (l *logger) Error(message string, keyvals ...interface{}) {
+	l.log.Helper()
 	l.log.Error(message, keyvals...)
 }
 
-// Debug logs a debug message only if verbose mode is enabled.
 func (l *logger) Debug(message interface{}, keyvals ...interface{}) {
-	// The level set in NewLogger handles whether this is printed.
-	// No need for the `if l.verbose` check here.
+	l.log.Helper()
 	l.log.Debug(message, keyvals...)
 }
 
-// IsVerbose returns true if verbose logging is enabled.
 func (l *logger) IsVerbose() bool {
 	return l.verbose
 }

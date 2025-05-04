@@ -38,10 +38,8 @@ func GetWorkflowRuns(repo string, branch string) ([]WorkflowRun, error) {
 		return nil, err
 	}
 
-	// Parse the JSON output
 	output := stdout.String()
 
-	// Basic parsing - in a real implementation, use json.Unmarshal
 	var runs []WorkflowRun
 	lines := strings.Split(output, "}")
 	for _, line := range lines {
@@ -51,37 +49,31 @@ func GetWorkflowRuns(repo string, branch string) ([]WorkflowRun, error) {
 
 		run := WorkflowRun{}
 
-		// Extract workflow ID
 		if idParts := strings.Split(line, "\"databaseId\": "); len(idParts) > 1 {
 			idStr := strings.Split(idParts[1], ",")[0]
 			run.ID = strings.TrimSpace(idStr)
 		}
 
-		// Extract name
 		if nameParts := strings.Split(line, "\"name\": \""); len(nameParts) > 1 {
 			name := strings.Split(nameParts[1], "\"")[0]
 			run.Name = name
 		}
 
-		// Extract status
 		if statusParts := strings.Split(line, "\"status\": \""); len(statusParts) > 1 {
 			status := strings.Split(statusParts[1], "\"")[0]
 			run.Status = status
 		}
 
-		// Extract conclusion
 		if conclParts := strings.Split(line, "\"conclusion\": \""); len(conclParts) > 1 {
 			concl := strings.Split(conclParts[1], "\"")[0]
 			run.Conclusion = concl
 		}
 
-		// Extract URL
 		if urlParts := strings.Split(line, "\"url\": \""); len(urlParts) > 1 {
 			url := strings.Split(urlParts[1], "\"")[0]
 			run.URL = url
 		}
 
-		// Extract timestamps
 		if dateParts := strings.Split(line, "\"createdAt\": \""); len(dateParts) > 1 {
 			date := strings.Split(dateParts[1], "\"")[0]
 			run.CreatedAt = date
@@ -114,7 +106,6 @@ func GetLatestWorkflowRun(repo string, branch string) (*WorkflowRun, error) {
 		return nil, nil
 	}
 
-	// First run in the list is the latest
 	latestRun := runs[0]
 
 	logger.Debug(fmt.Sprintf("Latest workflow run: %s (Status: %s, Conclusion: %s)",
@@ -172,7 +163,6 @@ func GetWorkflowRunLogs(runID string, repo string) (string, error) {
 	logger := logging.GetLogger()
 	logger.Debug(fmt.Sprintf("Getting logs for workflow run %s", runID))
 
-	// First, download logs to a temporary location
 	args := []string{"run", "view", runID, "--repo", repo, "--log"}
 	stdout, stderr, err := gh.Exec(args...)
 	if err != nil {
@@ -184,9 +174,7 @@ func GetWorkflowRunLogs(runID string, repo string) (string, error) {
 	return stdout.String(), nil
 }
 
-// Helper function to extract repo from a URL
 func ExtractRepoFromURL(url string) (string, error) {
-	// Handle different GitHub URL formats
 	parts := strings.Split(url, "github.com/")
 	if len(parts) < 2 {
 		return "", fmt.Errorf("invalid GitHub URL format")
@@ -202,13 +190,11 @@ func ExtractRepoFromURL(url string) (string, error) {
 	owner := pathParts[0]
 	repo := pathParts[1]
 
-	// Remove .git suffix if present
 	repo = strings.TrimSuffix(repo, ".git")
 
 	return fmt.Sprintf("%s/%s", owner, repo), nil
 }
 
-// Get workflow run by ID
 func GetWorkflowRunByID(runID string, repo string) (*WorkflowRun, error) {
 	logger := logging.GetLogger()
 	logger.Debug(fmt.Sprintf("Getting workflow run %s by ID", runID))
@@ -223,34 +209,28 @@ func GetWorkflowRunByID(runID string, repo string) (*WorkflowRun, error) {
 
 	output := stdout.String()
 
-	// Parse the single workflow run info
 	run := WorkflowRun{}
 
-	// Extract workflow ID
 	if idParts := strings.Split(output, "\"databaseId\": "); len(idParts) > 1 {
 		idStr := strings.Split(idParts[1], ",")[0]
 		run.ID = strings.TrimSpace(idStr)
 	}
 
-	// Extract name
 	if nameParts := strings.Split(output, "\"name\": \""); len(nameParts) > 1 {
 		name := strings.Split(nameParts[1], "\"")[0]
 		run.Name = name
 	}
 
-	// Extract status
 	if statusParts := strings.Split(output, "\"status\": \""); len(statusParts) > 1 {
 		status := strings.Split(statusParts[1], "\"")[0]
 		run.Status = status
 	}
 
-	// Extract conclusion
 	if conclParts := strings.Split(output, "\"conclusion\": \""); len(conclParts) > 1 {
 		concl := strings.Split(conclParts[1], "\"")[0]
 		run.Conclusion = concl
 	}
 
-	// Extract URL
 	if urlParts := strings.Split(output, "\"url\": \""); len(urlParts) > 1 {
 		url := strings.Split(urlParts[1], "\"")[0]
 		run.URL = url

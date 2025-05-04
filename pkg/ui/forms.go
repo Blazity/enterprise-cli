@@ -97,8 +97,6 @@ func (m FormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.form = formModel.(*huh.Form)
 
-	// When the form is completed, log it but don't immediately quit
-	// This lets the program exit naturallyhttps://github.com/charmbracelet/huh with the form results
 	if m.form.State == huh.StateCompleted {
 		if m.logger != nil {
 			m.logger.Debug("Form completed successfully")
@@ -113,24 +111,18 @@ func (m FormModel) View() string {
 	return m.form.View()
 }
 
-// RunForm runs a form with simple CTRL+C handling
 func RunForm(form *huh.Form, cancel context.CancelFunc) error {
-	// Configure tea.Program
 	model := NewFormModel(form, cancel)
 
-	// Use a standard program without fancy options
 	program := tea.NewProgram(model)
 
-	// Run the program - CTRL+C will be caught by the global handler in main.go
 	finalModel, err := program.Run()
 
-	// Check if the model was cancelled by the user
 	if m, ok := finalModel.(FormModel); ok && m.WasCancelled() {
-		return ErrFormCancelled // NEW: Return the specific error
+		return ErrFormCancelled
 	}
 
 	if err != nil {
-		// Handle other errors from the form
 		return err
 	}
 
