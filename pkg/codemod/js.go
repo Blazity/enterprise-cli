@@ -10,10 +10,10 @@ import (
 	"strings"
 )
 
-type Config struct {
+type JsCodemodConfig struct {
 	InputPath      string
-	CodemodName    string
-	CodemodDir     string
+	JsCodemodName    string
+	JsCodemodDir     string
 	Parser         string
 	DryRun         bool
 	Verbose        bool
@@ -22,9 +22,9 @@ type Config struct {
 	TransformPath  string
 }
 
-func NewDefaultConfig() *Config {
-	return &Config{
-		CodemodDir: "codemods",
+func NewDefaultJsCodemodConfig() *JsCodemodConfig {
+	return &JsCodemodConfig{
+		JsCodemodDir: "codemods",
 		Parser:     "tsx",
 		Extensions: "js,jsx,ts,tsx",
 		DryRun:     false,
@@ -32,17 +32,17 @@ func NewDefaultConfig() *Config {
 	}
 }
 
-func RunFromFlags() error {
+func RunJsCodemodFromFlags() error {
 	cfg, err := parseFlags()
 	if err != nil {
 		return err
 	}
-	return RunCodemod(cfg)
+	return RunJsCodemod(cfg)
 }
 
-func RunCodemod(cfg *Config) error {
-	if cfg.CodemodDir == "" {
-		cfg.CodemodDir = "codemods"
+func RunJsCodemod(cfg *JsCodemodConfig) error {
+	if cfg.JsCodemodDir == "" {
+		cfg.JsCodemodDir = "codemods"
 	}
 	if cfg.Parser == "" {
 		cfg.Parser = "tsx"
@@ -54,7 +54,7 @@ func RunCodemod(cfg *Config) error {
 	if cfg.InputPath == "" {
 		return fmt.Errorf("missing InputPath in codemod config")
 	}
-	if cfg.CodemodName == "" {
+	if cfg.JsCodemodName == "" {
 		return fmt.Errorf("missing CodemodName in codemod config")
 	}
 
@@ -74,15 +74,15 @@ func RunCodemod(cfg *Config) error {
 	return nil
 }
 
-func parseFlags() (*Config, error) {
-	cfg := &Config{}
+func parseFlags() (*JsCodemodConfig, error) {
+	cfg := &JsCodemodConfig{}
 
 	fs := flag.NewFlagSet("codemod", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	fs.StringVar(&cfg.InputPath, "input", "", "Path to the file or directory to transform (required)")
-	fs.StringVar(&cfg.CodemodName, "transform", "", "Name of the transform to use (required)")
-	fs.StringVar(&cfg.CodemodDir, "dir", "codemods", "Directory containing transform files")
+	fs.StringVar(&cfg.JsCodemodName, "transform", "", "Name of the transform to use (required)")
+	fs.StringVar(&cfg.JsCodemodDir, "dir", "codemods", "Directory containing transform files")
 	fs.StringVar(&cfg.Parser, "parser", "tsx", "Parser to use (babel, babylon, ts, tsx, flow, etc.)")
 	fs.BoolVar(&cfg.DryRun, "dry", false, "Dry run (don't modify files)")
 	fs.BoolVar(&cfg.Verbose, "verbose", false, "Show more information about the transform process")
@@ -101,14 +101,14 @@ func parseFlags() (*Config, error) {
 	if cfg.InputPath == "" {
 		return nil, fmt.Errorf("missing required flag: --input")
 	}
-	if cfg.CodemodName == "" {
+	if cfg.JsCodemodName == "" {
 		return nil, fmt.Errorf("missing required flag: --transform")
 	}
 
 	return cfg, nil
 }
 
-func resolveCodemodAbsPath(dirFlag string) (string, error) {
+func resolveJsCodemodAbsPath(dirFlag string) (string, error) {
 	if filepath.IsAbs(dirFlag) {
 		if _, err := os.Stat(dirFlag); os.IsNotExist(err) {
 			return "", fmt.Errorf("specified absolute codemod directory not found: %s", dirFlag)
@@ -137,7 +137,7 @@ func resolveCodemodAbsPath(dirFlag string) (string, error) {
 	return "", fmt.Errorf("codemod directory '%s' not found relative to current directory or executable directory ('%s')", dirFlag, execDir)
 }
 
-func resolvePathsAndValidate(cfg *Config) error {
+func resolvePathsAndValidate(cfg *JsCodemodConfig) error {
 	inputPathAbs, err := filepath.Abs(cfg.InputPath)
 	if err != nil {
 		return fmt.Errorf("could not get absolute path for input '%s': %w", cfg.InputPath, err)
@@ -146,13 +146,13 @@ func resolvePathsAndValidate(cfg *Config) error {
 		return fmt.Errorf("input path not found: %s (resolved to: %s)", cfg.InputPath, inputPathAbs)
 	}
 
-	codemodAbsPath, err := resolveCodemodAbsPath(cfg.CodemodDir)
+	codemodAbsPath, err := resolveJsCodemodAbsPath(cfg.JsCodemodDir)
 	if err != nil {
 		return err
 	}
 	cfg.CodemodAbsPath = codemodAbsPath
 
-	transformPath := filepath.Join(cfg.CodemodAbsPath, cfg.CodemodName)
+	transformPath := filepath.Join(cfg.CodemodAbsPath, cfg.JsCodemodName)
 	if !strings.HasSuffix(strings.ToLower(transformPath), ".js") {
 		transformPath += ".js"
 	}
@@ -172,8 +172,8 @@ func resolvePathsAndValidate(cfg *Config) error {
 	return nil
 }
 
-func listAvailableTransforms(codemodAbsPath string) string {
-	files, err := os.ReadDir(codemodAbsPath)
+func listAvailableTransforms(jsCodemodAbsPath string) string {
+	files, err := os.ReadDir(jsCodemodAbsPath)
 	if err != nil {
 		return ""
 	}
@@ -198,7 +198,7 @@ func listAvailableTransforms(codemodAbsPath string) string {
 	return builder.String()
 }
 
-func prepareCommand(cfg *Config) (*exec.Cmd, error) {
+func prepareCommand(cfg *JsCodemodConfig) (*exec.Cmd, error) {
 	npxPath, err := exec.LookPath("npx")
 	if err != nil {
 		return nil, fmt.Errorf("command 'npx' not found in PATH. Is Node.js (which includes npx) installed and configured correctly? (%w)", err)
@@ -226,7 +226,7 @@ func prepareCommand(cfg *Config) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
-func runCommand(cmd *exec.Cmd, cfg *Config) error {
+func runCommand(cmd *exec.Cmd, cfg *JsCodemodConfig) error {
 	if cfg.Verbose {
 		fmt.Printf("Executing codemod command: %s\n", strings.Join(cmd.Args, " "))
 	}

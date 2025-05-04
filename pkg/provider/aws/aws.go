@@ -222,9 +222,11 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
+	targetTerraformDir := filepath.Join(cwd, "terraform/")
+
 	if err := filesystem.CopyDir(
 		filepath.Join(p.tempDir, "terraform/"),
-		filepath.Join(cwd, "terraform/"),
+		targetTerraformDir,
 	); err != nil {
 		logging.GetLogger().Error("Failed to copy terraform files", "error", err)
 		cleanup(p)
@@ -239,11 +241,23 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	codemodCfg := codemod.NewDefaultConfig()
-	codemodCfg.InputPath = "next.config.ts"
-	codemodCfg.CodemodName = "next-config"
+	hclCodemodCfg := codemod.NewDefaultHclCodemodConfig()
+	hclCodemodCfg.SourceDir = targetTerraformDir
+	hclCodemodCfg.Region = p.region
 
-	if err := codemod.RunCodemod(codemodCfg); err != nil {
+	if err := codemod.RunHclCodemod(hclCodemodCfg); err != nil {
+		logging.GetLogger().Error("Failed to apply HCL codemod", "error", err)
+		cleanup(p)
+		return fmt.Errorf("failed to apply HCL codemod: %w", err)
+	}
+
+	logging.GetLogger().Info("Modified HCL according to the user input")
+
+	jsCodemodCfg := codemod.NewDefaultJsCodemodConfig()
+	jsCodemodCfg.InputPath = "next.config.ts"
+	jsCodemodCfg.JsCodemodName = "next-config"
+
+	if err := codemod.RunJsCodemod(jsCodemodCfg); err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
 		cleanup(p)
 		return fmt.Errorf("preparation succeeded, but failed to apply next-config codemod: %w", err)

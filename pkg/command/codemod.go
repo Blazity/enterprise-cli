@@ -11,16 +11,16 @@ import (
 
 func NewCodemodCommand(ctx context.Context) *cobra.Command {
 	logger := logging.GetLogger()
-	cfg := codemod.NewDefaultConfig()
+	cfg := codemod.NewDefaultJsCodemodConfig()
 
 	codemodCmd := &cobra.Command{
 		Use:   "codemod",
 		Short: "Run a jscodeshift codemod transformation",
 		Long:  `Applies a specified jscodeshift codemod to a target file or directory.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			logger.Info(fmt.Sprintf("Running codemod '%s' on '%s'...", cfg.CodemodName, cfg.InputPath))
+			logger.Info(fmt.Sprintf("Running codemod '%s' on '%s'...", cfg.JsCodemodName, cfg.InputPath))
 
-			if err := codemod.RunCodemod(cfg); err != nil {
+			if err := codemod.RunJsCodemod(cfg); err != nil {
 				logger.Error(fmt.Sprintf("Codemod execution failed: %v", err))
 				return err
 			}
@@ -35,8 +35,8 @@ func NewCodemodCommand(ctx context.Context) *cobra.Command {
 	}
 
 	codemodCmd.Flags().StringVarP(&cfg.InputPath, "input", "i", "", "Path to the file or directory to transform (required)")
-	codemodCmd.Flags().StringVarP(&cfg.CodemodName, "transform", "t", "", "Name of the transform to use (required)")
-	codemodCmd.Flags().StringVarP(&cfg.CodemodDir, "dir", "d", cfg.CodemodDir, "Directory containing transform files")
+	codemodCmd.Flags().StringVarP(&cfg.JsCodemodName, "transform", "t", "", "Name of the transform to use (required)")
+	codemodCmd.Flags().StringVarP(&cfg.JsCodemodDir, "dir", "d", cfg.JsCodemodDir, "Directory containing transform files")
 	codemodCmd.Flags().StringVar(&cfg.Parser, "parser", cfg.Parser, "Parser to use (e.g., tsx, babel)")
 	codemodCmd.Flags().StringVar(&cfg.Extensions, "extensions", cfg.Extensions, "Comma-separated list of file extensions to process")
 	codemodCmd.Flags().BoolVar(&cfg.DryRun, "dry", cfg.DryRun, "Perform a dry run without modifying files")

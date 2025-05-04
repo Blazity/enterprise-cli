@@ -23,3 +23,8 @@ go.work
 # Dependency directories
 vendor/
 
+terraform/
+next-config.ts
+docker-compose.yml
+Dockerfile
+.npmrc
