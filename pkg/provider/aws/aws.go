@@ -222,6 +222,28 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
+	targetGitHubActionsDir := filepath.Join(cwd, ".github/");
+
+	if err := filesystem.SafelyDeleteDir(targetGitHubActionsDir); err != nil {
+		logging.GetLogger().Error("Failed to delete CI/CD (GitHub Actions) files", "error", err)
+		cleanup(p)
+		return err
+	}
+
+	if err := filesystem.CopyDir(filepath.Join(p.tempDir, ".github/"), targetGitHubActionsDir); err != nil {
+		logging.GetLogger().Error("Failed to copy CI/CD (GitHub Actions) files", "error", err)
+		cleanup(p)
+		return err
+	}
+
+	if err := github.CommitChanges(".", "chore(ci): configure github actions for aws", []string{".github"}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Overwritten the CI/CD files (GitHub Actions) in the local git repository")
+
 	targetTerraformDir := filepath.Join(cwd, "terraform/")
 
 	if err := filesystem.CopyDir(
@@ -249,6 +271,12 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		logging.GetLogger().Error("Failed to apply HCL codemod", "error", err)
 		cleanup(p)
 		return fmt.Errorf("failed to apply HCL codemod: %w", err)
+	}
+
+	if err := github.CommitChanges(".", "chore(aws): modify hcl to reflect user input", []string{"terraform"}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
+		cleanup(p)
+		return err
 	}
 
 	logging.GetLogger().Info("Modified HCL according to the user input")
