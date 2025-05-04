@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -39,6 +40,7 @@ type AwsProvider struct {
 	isPrivate       bool
 	tempDir         string
 	cancelled       bool
+	activeBranch    string
 }
 
 func (p *AwsProvider) SetCancelFunc(cancel context.CancelFunc) {
@@ -213,6 +215,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		cleanup(p)
 		return err
 	}
+	p.activeBranch = actualBranchName
 	logging.GetLogger().Info("Prepared branch", "name", actualBranchName)
 
 	logging.GetLogger().Debug("Copying terraform files", "source", filepath.Join(p.tempDir, "terraform"), "dest", filepath.Join(".", "terraform"))
@@ -222,7 +225,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	targetGitHubActionsDir := filepath.Join(cwd, ".github/");
+	targetGitHubActionsDir := filepath.Join(cwd, ".github/")
 
 	if err := filesystem.SafelyDeleteDir(targetGitHubActionsDir); err != nil {
 		logging.GetLogger().Error("Failed to delete CI/CD (GitHub Actions) files", "error", err)
@@ -321,6 +324,20 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
+	if err := filesystem.MoveToSubDir("frontend", []string{".github", "terraform", "README.md", "LICENSE", ".gitignore", ".git"}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to pack old repository files to the frontend/ subdirectory: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	if err := github.CommitChanges(".", "chore(aws): move old repository to frontend/ sub dir", []string{}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Moved Next.js application source to subdirectory", "path", "frontend/")
+
 	logging.GetLogger().Info("Done all local git commits")
 
 	repoNameForCreation := ""
@@ -416,13 +433,93 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	logging.GetLogger().Info(fmt.Sprintf("Set %s secrets as GitHub Secrets", ui.LegibleProviderName("aws")), "secrets", []string{"AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
 
-	logging.GetLogger().Info("Deployment prepared in repository", "name", repoFullName, "branch", actualBranchName)
+	setRedisUrlArgs := []string{"variable", "set", "REDIS_URL", "--body", "redis://next-enterprise-terraform-dev-redis-cluster.rwzcut.0001.euw2.cache.amazonaws.com:6379", "--repo", repoFullName}
 
-	if err := github.PushBranch(".", actualBranchName, remoteName); err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to push changes: %s", err))
+	_, stderr, err = gh.Exec(setRedisUrlArgs...)
+	if err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to set REDIS_URL: %s", err))
+		logging.GetLogger().Error(stderr.String())
 		cleanup(p)
 		return err
 	}
+
+	setS3StorybookBucketName := []string{"variable", "set", "S3_STORYBOOK_BUCKET_NAME", "--body", "next-enterprise-terraform-storybook", "--repo", repoFullName}
+
+	_, stderr, err = gh.Exec(setS3StorybookBucketName...)
+	if err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to set S3_STORYBOOK_BUCKET_NAME: %s", err))
+		logging.GetLogger().Error(stderr.String())
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Set variables as GitHub Env Vars", "variables", []string{"S3_STORYBOOK_BUCKET_NAME", "REDIS_URL"})
+
+	enableActionsArgs := []string{
+		"api",
+		"-X", "PUT",
+		fmt.Sprintf("repos/%s/actions/permissions", repoFullName),
+		"-H", "Accept: application/vnd.github+json",
+		"-H", "X-GitHub-Api-Version: 2022-11-28",
+		"-F", "enabled=true",
+		"-F", "allowed_actions=all",
+	}
+
+	_, stderr, err = gh.Exec(enableActionsArgs...)
+	if err != nil {
+		logging.GetLogger().Error("Failed to enable GitHub Actions", "error", err)
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Enabled GitHub Actions in the newly created remote repository")
+
+	logging.GetLogger().Info("Deployment prepared in repository", "name", repoFullName, "branch", actualBranchName)
+
+	// Push timestamp branch to remote main
+	logger := logging.GetLogger()
+	logger.Debug("Pushing local branch to remote main", "localBranch", p.activeBranch, "remote", remoteName, "remoteBranch", "main")
+	if out, err := exec.Command("git", "-C", ".", "push", "-u", remoteName, fmt.Sprintf("%s:main", p.activeBranch)).CombinedOutput(); err != nil {
+		logger.Error("Failed to push local branch to remote main", "error", err)
+		logger.Debug(string(out))
+		cleanup(p)
+		return err
+	}
+	logger.Info("Pushed local branch to remote main", "remote", remoteName, "branch", "main")
+
+	// Artificial Merge: delete local timestamp branch
+	logger.Info("Deleting local timestamp branch", "branch", p.activeBranch)
+	if out, err := exec.Command("git", "-C", ".", "branch", "-D", p.activeBranch).CombinedOutput(); err != nil {
+		logger.Warning("Failed to delete local timestamp branch", "branch", p.activeBranch, "error", err)
+		logger.Debug(string(out))
+	}
+
+	// Delete any existing main branch locally
+	logger.Debug("Deleting pre-existing local main branch", "branch", "main")
+	if out, err := exec.Command("git", "-C", ".", "branch", "-D", "main").CombinedOutput(); err != nil {
+		logger.Debug("Could not delete local main branch (may not exist)", "error", err)
+		logger.Debug(string(out))
+	}
+
+	// Fetch and check out remote main
+	logger.Info("Fetching remote main branch", "remote", remoteName)
+	if out, err := exec.Command("git", "-C", ".", "fetch", remoteName, "main").CombinedOutput(); err != nil {
+		logger.Error("Failed to fetch remote main", "error", err)
+		logger.Debug(string(out))
+		cleanup(p)
+		return err
+	}
+
+	logger.Info("Checking out remote main as local main", "remoteBranch", remoteName+"/main")
+	if out, err := exec.Command("git", "-C", ".", "checkout", "--track", remoteName+"/main").CombinedOutput(); err != nil {
+		logger.Error("Failed to checkout remote main", "error", err)
+		logger.Debug(string(out))
+		cleanup(p)
+		return err
+	}
+
+	// Clear activeBranch so cleanup won't try branch operations again
+	p.activeBranch = ""
 
 	cleanup(p)
 
@@ -458,10 +555,25 @@ func (p *AwsProvider) DeployWithContext(ctx context.Context) error {
 }
 
 func cleanup(p *AwsProvider) {
+	logger := logging.GetLogger()
+	// If a timestamp branch was created, switch back to main and delete it
+	if p.activeBranch != "" {
+		logger.Debug("Switching back to main branch", "from", p.activeBranch)
+		if out, err := exec.Command("git", "-C", ".", "checkout", "main").CombinedOutput(); err != nil {
+			logger.Warning("Failed to checkout main during cleanup", "error", err)
+			logger.Debug(string(out))
+		}
+		logger.Debug("Deleting local timestamp branch", "branch", p.activeBranch)
+		if out, err := exec.Command("git", "-C", ".", "branch", "-D", p.activeBranch).CombinedOutput(); err != nil {
+			logger.Warning("Failed to delete local timestamp branch during cleanup", "branch", p.activeBranch, "error", err)
+			logger.Debug(string(out))
+		}
+	}
+	// Clean up temp dir if exists
 	if p.tempDir != "" {
-		logging.GetLogger().Debug(fmt.Sprintf("Cleaning up temporary directory: %s", p.tempDir))
+		logger.Debug("Cleaning up temporary directory", "path", p.tempDir)
 		if err := os.RemoveAll(p.tempDir); err != nil {
-			logging.GetLogger().Warning(fmt.Sprintf("Failed to clean up temporary directory: %s", err))
+			logger.Warning("Failed to clean up temporary directory", "path", p.tempDir, "error", err)
 		}
 	}
 }
