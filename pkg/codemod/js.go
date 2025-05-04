@@ -1,6 +1,7 @@
 package codemod
 
 import (
+	"embed"
 	"flag"
 	"fmt"
 	"io"
@@ -10,10 +11,39 @@ import (
 	"strings"
 )
 
+//go:embed codemods/*.js
+var codemodsFS embed.FS
+
+// extractEmbeddedCodemods unpacks embedded JS codemod files into a temporary dir.
+func extractEmbeddedCodemods() (string, error) {
+	tmpDir, err := os.MkdirTemp("", "cli-codemods-*")
+	if err != nil {
+		return "", fmt.Errorf("creating temp codemod dir: %w", err)
+	}
+	entries, err := codemodsFS.ReadDir("codemods")
+	if err != nil {
+		return "", fmt.Errorf("reading embedded codemods: %w", err)
+	}
+	for _, ent := range entries {
+		if ent.IsDir() || !strings.HasSuffix(strings.ToLower(ent.Name()), ".js") {
+			continue
+		}
+		data, err := codemodsFS.ReadFile("codemods/" + ent.Name())
+		if err != nil {
+			return "", fmt.Errorf("reading embedded file %q: %w", ent.Name(), err)
+		}
+		target := filepath.Join(tmpDir, ent.Name())
+		if err := os.WriteFile(target, data, 0o644); err != nil {
+			return "", fmt.Errorf("writing embedded codemod %q to temp dir: %w", ent.Name(), err)
+		}
+	}
+	return tmpDir, nil
+}
+
 type JsCodemodConfig struct {
 	InputPath      string
-	JsCodemodName    string
-	JsCodemodDir     string
+	JsCodemodName  string
+	JsCodemodDir   string
 	Parser         string
 	DryRun         bool
 	Verbose        bool
@@ -25,10 +55,10 @@ type JsCodemodConfig struct {
 func NewDefaultJsCodemodConfig() *JsCodemodConfig {
 	return &JsCodemodConfig{
 		JsCodemodDir: "codemods",
-		Parser:     "tsx",
-		Extensions: "js,jsx,ts,tsx",
-		DryRun:     false,
-		Verbose:    false,
+		Parser:       "tsx",
+		Extensions:   "js,jsx,ts,tsx",
+		DryRun:       false,
+		Verbose:      false,
 	}
 }
 
@@ -41,6 +71,14 @@ func RunJsCodemodFromFlags() error {
 }
 
 func RunJsCodemod(cfg *JsCodemodConfig) error {
+	// unpack the embedded codemods into a temp directory
+	tmpDir, err := extractEmbeddedCodemods()
+	if err != nil {
+		return fmt.Errorf("could not extract embedded codemods: %w", err)
+	}
+	cfg.JsCodemodDir = tmpDir
+
+	// fall back only if extraction failed to provide a dir (unlikely)
 	if cfg.JsCodemodDir == "" {
 		cfg.JsCodemodDir = "codemods"
 	}
@@ -221,7 +259,6 @@ func prepareCommand(cfg *JsCodemodConfig) (*exec.Cmd, error) {
 	args = append(args, cfg.InputPath)
 
 	cmd := exec.Command(npxPath, args...)
-
 
 	return cmd, nil
 }
