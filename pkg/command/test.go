@@ -49,10 +49,13 @@ func NewTestCommand(ctx context.Context) *cobra.Command {
 			}
 
 			logger.Info("Copying resource mappings...")
-			if err := rm.CopyAllMappings(); err != nil {
+			if destPaths, err := rm.CopyAllMappings(); err != nil {
 				logger.Error(fmt.Sprintf("Failed to copy resource mappings: %v", err))
+
+			logger.Info("Paths", "destpaths", destPaths)
 				return err
 			}
+
 
 			logger.Info("Resource mappings copied successfully")
 			return nil

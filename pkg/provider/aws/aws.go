@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -16,6 +14,7 @@ import (
 	"github.com/blazity/enterprise-cli/pkg/provider"
 	"github.com/blazity/enterprise-cli/pkg/resources"
 	"github.com/blazity/enterprise-cli/pkg/ui"
+	"github.com/blazity/enterprise-cli/pkg/utils/filesystem"
 	"github.com/charmbracelet/huh"
 	"github.com/cli/go-gh"
 )
@@ -94,11 +93,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	p.isPrivate = true
 
 	organizationsLength := 0
-	if len(organizations) > 8 {
-		organizationsLength = 8
-	} else {
-		organizationsLength = len(organizations)
-	}
+	organizationsLength = min(len(organizations), 8)
 
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -218,18 +213,73 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		cleanup(p)
 		return err
 	}
-	logging.GetLogger().Info(fmt.Sprintf("Prepared branch: %s", actualBranchName))
+	logging.GetLogger().Info("Prepared branch", "name", actualBranchName)
 
-	logging.GetLogger().Info("Copying files from boilerplate...")
+	logging.GetLogger().Debug("Copying terraform files", "source", filepath.Join(p.tempDir, "terraform"), "dest", filepath.Join(".", "terraform"))
 
-	if err := copyFile(
-		filepath.Join(p.tempDir, "README.md"),
-		filepath.Join(".", "README.md"),
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	if err := filesystem.CopyDir(
+		filepath.Join(p.tempDir, "terraform/"),
+		filepath.Join(cwd, "terraform/"),
 	); err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to copy README.md: %s", err))
+		logging.GetLogger().Error("Failed to copy terraform files", "error", err)
 		cleanup(p)
 		return err
 	}
+
+	logging.GetLogger().Info("Copied terraform files to the local git repository")
+
+	if err := github.CommitChanges(".", "chore(aws): add terraform files", []string{"terraform"}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	codemodCfg := codemod.NewDefaultConfig()
+	codemodCfg.InputPath = "next.config.ts"
+	codemodCfg.CodemodName = "next-config"
+
+	if err := codemod.RunCodemod(codemodCfg); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
+		cleanup(p)
+		return fmt.Errorf("preparation succeeded, but failed to apply next-config codemod: %w", err)
+	}
+
+	logging.GetLogger().Info("Applied next.config.ts codemod in the local git repository")
+
+	if err := github.CommitChanges(".", "chore(aws): add next.config.ts codemod", []string{"next.config.ts"}); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	resourceManager, err := resources.NewResourceManager(p.tempDir)
+	if err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to create resource manager: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	destinationPaths, err := resourceManager.CopyAllMappings()
+	if err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to copy mappings: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Copied remaining resources to the local git repository", "paths", destinationPaths)
+
+	if err := github.CommitChanges(".", "chore(aws): add all remaining resources", destinationPaths); err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Done all local git commits")
 
 	repoNameForCreation := ""
 	repoFullName :=
@@ -248,9 +298,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		createArgs = append(createArgs, "--public")
 	}
 
-	logging.GetLogger().Info(fmt.Sprintf("Creating %s repository: %s on GitHub...",
-		map[bool]string{true: "private", false: "public"}[p.isPrivate],
-		repoNameForCreation))
+	logging.GetLogger().Debug("Creating repository", "name", repoNameForCreation, "type", map[bool]string{true: "private", false: "public"}[p.isPrivate])
 
 	stdout, stderr, err := gh.Exec(createArgs...)
 	if err != nil {
@@ -260,7 +308,16 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info(fmt.Sprintf("Repository created: %s", strings.TrimSpace(stdout.String())))
+	logging.GetLogger().Info("Created remote repository on GitHub", "name", strings.TrimSpace(stdout.String()))
+
+	remoteName := "origin"
+	remoteURL := fmt.Sprintf("https://github.com/%s.git", repoFullName)
+	if err := github.SetRemote(".", remoteName, remoteURL); err != nil {
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Added git remote info to the local repository", "name", remoteName)
 
 	awsForm := huh.NewForm(
 		huh.NewGroup(
@@ -287,8 +344,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		cleanup(p)
 		return err
 	}
-
-	logging.GetLogger().Info("Setting AWS credentials as GitHub secrets...")
 
 	setAccessKeyArgs := []string{"secret", "set", "AWS_ACCESS_KEY_ID", "--body", p.accessKeyID, "--repo", repoFullName}
 	_, stderr, err = gh.Exec(setAccessKeyArgs...)
@@ -317,64 +372,9 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info("AWS credentials set as GitHub secrets")
+	logging.GetLogger().Info(fmt.Sprintf("Set %s secrets as GitHub Secrets", ui.LegibleProviderName("aws")), "secrets", []string{"AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
 
-	if err := github.CommitChanges(".", "Add files from Enterprise boilerplate", []string{"README.md"}); err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to commit changes: %s", err))
-		cleanup(p)
-		return err
-	}
-
-	logging.GetLogger().Info("Commited changes")
-
-	checkRemoteCmd := exec.Command("git", "-C", ".", "remote")
-	remoteOutput, _ := checkRemoteCmd.CombinedOutput()
-
-	remoteName := "enterprise-aws"
-
-	if strings.Contains(string(remoteOutput), remoteName) {
-		removeRemoteCmd := exec.Command("git", "-C", ".", "remote", "remove", remoteName)
-		if output, err := removeRemoteCmd.CombinedOutput(); err != nil {
-			logging.GetLogger().Warning(fmt.Sprintf("Remote already exists but couldn't be removed: %s", string(output)))
-			remoteName = "enterprise-aws-new"
-		}
-	}
-
-	logging.GetLogger().Info(fmt.Sprintf("%s deployment prepared in repository: %s on branch %s", ui.LegibleProviderName(p.GetName()), repoFullName, actualBranchName))
-
-	logging.GetLogger().Info("Applying next.config.ts codemod...")
-	codemodCfg := codemod.NewDefaultConfig()
-	codemodCfg.InputPath = "next.config.ts"
-	codemodCfg.CodemodName = "next-config"
-
-	if err := codemod.RunCodemod(codemodCfg); err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to apply next-config codemod: %v", err))
-		cleanup(p)
-		return fmt.Errorf("preparation succeeded, but failed to apply next-config codemod: %w", err)
-	}
-	logging.GetLogger().Info("Successfully applied next.config.ts codemod.")
-
-	resourceManager, err := resources.NewResourceManager(p.tempDir)
-	if err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to create resource manager: %s", err))
-		cleanup(p)
-		return err
-	}
-
-	if err := resourceManager.CopyAllMappings(); err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to copy mappings: %s", err))
-		cleanup(p)
-		return err
-	}
-
-	addRemoteCmd := exec.Command("git", "-C", ".", "remote", "add", remoteName, fmt.Sprintf("https://github.com/%s.git", repoFullName))
-
-	if output, err := addRemoteCmd.CombinedOutput(); err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to add remote: %s", err))
-		logging.GetLogger().Error(string(output))
-		cleanup(p)
-		return err
-	}
+	logging.GetLogger().Info("Deployment prepared in repository", "name", repoFullName, "branch", actualBranchName)
 
 	if err := github.PushBranch(".", actualBranchName, remoteName); err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to push changes: %s", err))
@@ -422,25 +422,4 @@ func cleanup(p *AwsProvider) {
 			logging.GetLogger().Warning(fmt.Sprintf("Failed to clean up temporary directory: %s", err))
 		}
 	}
-}
-
-func copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer sourceFile.Close()
-
-	destFile, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer destFile.Close()
-
-	_, err = io.Copy(destFile, sourceFile)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }

@@ -106,6 +106,27 @@ func NewResourceManager(rootDir string) (*ResourceManager, error) {
 	return rm, nil
 }
 
+// normalizeDestination processes destination paths by removing special variables
+// and handling empty paths. It returns the absolute path to the destination directory.
+func (rm *ResourceManager) normalizeDestination(destination string) (string, error) {
+	dest := destination
+	dest = strings.Replace(dest, "${next-enterprise}/", "", 1)
+	dest = strings.Replace(dest, "${next-enterprise}", "", 1)
+
+	logging.GetLogger().Debug("Normalized destination path", "path", dest)
+
+	if dest == "" {
+		dest = "."
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
+	return filepath.Join(cwd, dest), nil
+}
+
 func (rm *ResourceManager) copyMapping(mapping Mapping) error {
 
 	src := mapping.Source
@@ -122,21 +143,11 @@ func (rm *ResourceManager) copyMapping(mapping Mapping) error {
 
 	dest := mapping.Destination
 
-	dest = strings.Replace(dest, "${next-enterprise}/", "", 1)
-	dest = strings.Replace(dest, "${next-enterprise}", "", 1)
-
-	logging.GetLogger().Debug("Normalized destination path", "path", dest)
-
-	if dest == "" {
-		dest = "."
-	}
-
-	cwd, err := os.Getwd()
+	destDir, err := rm.normalizeDestination(dest)
 	if err != nil {
-		return fmt.Errorf("failed to get current working directory: %w", err)
+		return err
 	}
 
-	destDir := filepath.Join(cwd, dest)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory '%s': %w", destDir, err)
 	}
@@ -171,16 +182,26 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-func (rm *ResourceManager) CopyAllMappings() error {
+func (rm *ResourceManager) CopyAllMappings() ([]string, error) {
 	if rm.config == nil {
-		return errors.New("ResourceManager not properly initialized or configuration is missing")
+		return nil, errors.New("ResourceManager not properly initialized or configuration is missing")
 	}
+
+	destinationPaths := []string{}
+
 	for _, mapping := range rm.config.Mappings {
 		if err := rm.copyMapping(mapping); err != nil {
-
-			return fmt.Errorf("failed processing mapping '%s': %w", mapping.LegibleName, err)
+			return nil, fmt.Errorf("failed processing mapping '%s': %w", mapping.LegibleName, err)
 		}
 
+		destDir, err := rm.normalizeDestination(mapping.Destination)
+		if err != nil {
+			return nil, err
+		}
+
+		destPath := filepath.Join(destDir, filepath.Base(mapping.Source))
+		destinationPaths = append(destinationPaths, destPath)
 	}
-	return nil
+
+	return destinationPaths, nil
 }
