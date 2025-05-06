@@ -48,31 +48,6 @@ module.exports = (fileInfo, api, options) => {
                     );
                     modified = true;
                 }
-                
-                // Add env property if it doesn't exist
-                if (!properties.some(prop => prop.key && prop.key.name === 'env')) {
-                    properties.push(
-                        j.property(
-                            'init',
-                            j.identifier('env'),
-                            j.objectExpression([
-                                j.property(
-                                    'init',
-                                    j.identifier('NEXT_PUBLIC_REDIS_INSIGHT_URL'),
-                                    j.logicalExpression(
-                                        '??',
-                                        j.memberExpression(
-                                            j.memberExpression(j.identifier('process'), j.identifier('env')),
-                                            j.identifier('REDIS_INSIGHT_URL')
-                                        ),
-                                        j.literal('http://localhost:8001')
-                                    )
-                                )
-                            ])
-                        )
-                    );
-                    modified = true;
-                }
             }
         }
     }
@@ -116,31 +91,6 @@ module.exports = (fileInfo, api, options) => {
                             ),
                             j.identifier('undefined')
                         )
-                    )
-                );
-                modified = true;
-            }
-            
-            // Add env property if it doesn't exist
-            if (!properties.some(prop => prop.key && prop.key.name === 'env')) {
-                properties.push(
-                    j.property(
-                        'init',
-                        j.identifier('env'),
-                        j.objectExpression([
-                            j.property(
-                                'init',
-                                j.identifier('NEXT_PUBLIC_REDIS_INSIGHT_URL'),
-                                j.logicalExpression(
-                                    '??',
-                                    j.memberExpression(
-                                        j.memberExpression(j.identifier('process'), j.identifier('env')),
-                                        j.identifier('REDIS_INSIGHT_URL')
-                                    ),
-                                    j.literal('http://localhost:8001')
-                                )
-                            )
-                        ])
                     )
                 );
                 modified = true;
