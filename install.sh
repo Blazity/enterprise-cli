@@ -61,6 +61,23 @@ GRAY='\033[0;90m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# Check for Homebrew and required packages on macOS
+if [ "$(uname -s)" = "Darwin" ]; then
+  if ! command -v brew &> /dev/null; then
+    printf " ${RED}✗ Error: Homebrew is required but not found.${NC}\n"
+    printf " ${GRAY}Install it from https://brew.sh/${NC}\n\n"
+    exit 1
+  fi
+
+  for pkg in gh go; do
+    if ! brew ls --versions "$pkg" &> /dev/null; then
+      printf " ${RED}✗ Error: %s is not installed.${NC}\n" "$pkg"
+      printf " ${GRAY}Please run: brew install %s${NC}\n\n" "$pkg"
+      exit 1
+    fi
+  done
+fi
+
 # Spinner frames - More aesthetic spinner
 SPINNER_FRAMES=('⣾' '⣽' '⣻' '⢿' '⡿' '⣟' '⣯' '⣷')
 
@@ -321,13 +338,32 @@ else
   spinner $PID "Cloning repository"
   
   # Get the exit code from the temp file
-  exit_code=$(cat "$exit_code_file")
+  exit_code=$(cat "$exit_code_file" 2>/dev/null || echo "")
   rm -f "$exit_code_file"
+  
+  # Default to failure if exit_code is not numeric
+  if ! [[ "$exit_code" =~ ^[0-9]+$ ]]; then
+    exit_code=1
+  fi
   
   # Check if clone was successful
   if [ "$exit_code" -ne 0 ] || [ ! -d "$TMP_DIR/enterprise-cli" ]; then
     printf " ${RED}✗ Failed to clone repository${NC}\n"
-    printf " ${GRAY}Please check your internet connection or the repository URL${NC}\n"
+    # Provide specific error messages based on git clone exit codes
+    case "$exit_code" in
+      128)
+        printf " ${GRAY}Error: Unable to access repository. Check your network, repository URL, or authentication.${NC}\n"
+        ;;
+      129)
+        printf " ${GRAY}Error: Invalid clone parameters. Please check command syntax or script version.${NC}\n"
+        ;;
+      130)
+        printf " ${GRAY}Error: Clone process was interrupted by the user.${NC}\n"
+        ;;
+      *)
+        printf " ${GRAY}Error: Git clone exited with code $exit_code.${NC}\n"
+        ;;
+    esac
     rm -rf "$TMP_DIR"
     exit 1
   fi
@@ -397,28 +433,19 @@ else
   PID=$!
   spinner $PID "Installing dependencies"
   
-  # Get the exit code from the temp file
   exit_code=$(cat "$exit_code_file" 2>/dev/null || echo "1")
   rm -f "$exit_code_file"
   
-  # Ensure exit_code is a number
   if ! [[ "$exit_code" =~ ^[0-9]+$ ]]; then
     exit_code=1
   fi
   
-  # Check if dependencies installation was successful
   if [ $exit_code -ne 0 ]; then
     printf " ${RED}✗ Failed to install dependencies${NC}\n"
     cd - > /dev/null
     rm -rf "$TMP_DIR"
     exit 1
   fi
-  printf " ${GREEN}✓${NC} ${GRAY}Dependencies installed${NC}\n"
-fi
-
-# This section is not needed - dependencies were already handled above
-# Just make sure we show the success message if we're in debug mode
-if [ "$DEBUG_MODE" = false ]; then
   printf " ${GREEN}✓${NC} ${GRAY}Dependencies installed${NC}\n"
 fi
 
@@ -664,37 +691,21 @@ else
   printf "   ${GRAY}- Run ${CYAN}source $SHELL_RC${NC} ${GRAY}to refresh your shell${NC}\n"
 fi
 
-# Create alias if it doesn't exist
-# Detect shell type - works even when piped to sh
+# Detect shell type by checking the parent process command, fallback to $SHELL
 detect_shell() {
-    # Try to detect based on parent process
-    if [ -n "$PPID" ]; then
-        parent_proc=$(ps -p $PPID -o comm= 2>/dev/null)
-        if [ -n "$parent_proc" ]; then
-            # Extract the base name without flags/options
-            parent_name=$(basename "$parent_proc" 2>/dev/null | sed 's/^-//' | tr -d '-' | cut -d' ' -f1)
-            case "$parent_name" in
-                fish)
-                    echo "fish"
-                    return
-                    ;;
-                zsh|bash|sh)
-                    echo "$parent_name"
-                    return
-                    ;;
-            esac
-        fi
-    fi
-    
-    # Fall back to $SHELL environment variable
-    if [ -n "$SHELL" ]; then
-        shell_name=$(basename "$SHELL" 2>/dev/null)
-        echo "$shell_name"
-        return
-    fi
-    
-    # Default to bash if we couldn't detect
-    echo "bash"
+    local parent_pid shell_cmd
+    parent_pid=$(ps -o ppid= -p $$ 2>/dev/null | tr -d ' ')
+    shell_cmd=$(ps -o comm= -p "$parent_pid" 2>/dev/null | xargs)
+    case "$shell_cmd" in
+        bash|zsh|fish|sh)
+            echo "$shell_cmd";;
+        *)
+            if [ -n "$SHELL" ]; then
+                echo "${SHELL##*/}"
+            else
+                echo "bash"
+            fi;;
+    esac
 }
 
 SHELL_TYPE=$(detect_shell)
