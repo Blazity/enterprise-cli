@@ -487,13 +487,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	}
 	logger.Info("Pushed local branch to remote main", "remote", remoteName, "branch", "main")
 
-	// Artificial Merge: delete local timestamp branch
-	logger.Info("Deleting local timestamp branch", "branch", p.activeBranch)
-	if out, err := exec.Command("git", "-C", ".", "branch", "-D", p.activeBranch).CombinedOutput(); err != nil {
-		logger.Warning("Failed to delete local timestamp branch", "branch", p.activeBranch, "error", err)
-		logger.Debug(string(out))
-	}
-
 	// Delete any existing main branch locally
 	logger.Debug("Deleting pre-existing local main branch", "branch", "main")
 	if out, err := exec.Command("git", "-C", ".", "branch", "-D", "main").CombinedOutput(); err != nil {
@@ -516,6 +509,13 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		logger.Debug(string(out))
 		cleanup(p)
 		return err
+	}
+
+	// Artificial Merge: delete local timestamp branch
+	logger.Info("Deleting local timestamp branch", "branch", p.activeBranch)
+	if out, err := exec.Command("git", "-C", ".", "branch", "-D", p.activeBranch).CombinedOutput(); err != nil {
+		logger.Warning("Failed to delete local timestamp branch", "branch", p.activeBranch, "error", err)
+		logger.Debug(string(out))
 	}
 
 	// Clear activeBranch so cleanup won't try branch operations again
