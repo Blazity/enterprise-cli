@@ -18,7 +18,7 @@ func NewEnterpriseCommand(ctx context.Context, cancel context.CancelFunc) *cobra
 	rootCmd := &cobra.Command{
 		Use:   "enterprise",
 		Short: "Enterprise CLI for infrastructure management",
-		Long:  "Enterprise CLI for preparing and deploying infrastructure across various providers",
+		Long:  "Enterprise CLI for preparing and deploying infrastructure across various providers in the next-enterprise repository",
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			logger := logging.GetLogger()
 			if verbose {
@@ -41,9 +41,6 @@ func NewEnterpriseCommand(ctx context.Context, cancel context.CancelFunc) *cobra
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
 
 	rootCmd.AddCommand(command.NewPrepareCommand(ctx))
-	rootCmd.AddCommand(command.NewDeployCommand(ctx, cancel))
-	rootCmd.AddCommand(command.NewTestCommand(ctx))
-	rootCmd.AddCommand(command.NewCodemodCommand(ctx))
 
 	rootCmd.SetHelpTemplate(`{{.Short}}
 
