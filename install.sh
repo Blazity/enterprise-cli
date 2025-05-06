@@ -816,7 +816,7 @@ if command -v enterprise &> /dev/null; then
     printf " ${GRAY}You can now use:${NC}\n"
     printf "   ${CYAN}enterprise${NC} ${GRAY}command${NC}    ${GRAY}# Run Enterprise CLI${NC}\n"
     printf "   ${CYAN}en${NC} ${GRAY}command${NC}            ${GRAY}# Using the alias (after sourcing)${NC}\n\n"
-    printf " ${GRAY}Try running:${NC} ${CYAN}enterprise version${NC}\n"
+    printf " ${GRAY}Try running:${NC} ${CYAN}enterprise --help${NC}\n"
     
     # If alias was added, show source command
     if [ "$ALIAS_EXISTS" -eq 0 ] && [ -n "$SHELL_RC" ]; then
