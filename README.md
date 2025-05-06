@@ -1,72 +1,28 @@
-# Enterprise CLI
 
-A comprehensive CLI tool for preparing and deploying enterprise infrastructure across various cloud providers.
 
-## Features
+## Enterprise CLI
 
-- Provider-based architecture for easy extensibility
-- Interactive forms with beautiful UI
-- Consistent styled logging with verbose mode
-- GitHub integration for repository management
-- Built using modern Go libraries
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/assets/blazity-logo-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="/assets/blazity-logo-light.svg">
+  <img alt="Logo" align="right" height="80" src="/assets/blazity-logo-light.svg">
+</picture>
+
+Enterprise CLI is a fully open source command-line tool created with goal to simplify setting up and deploying Next.js infrastructure across various cloud providers by automating the processes that would require cumbersome manual work.
+
+A part of the [next-enterprise][next-enterprise] tooling.
+
+[Read more at our documentation site (docs.blazity.com)][docs]
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/blazity/enterprise-cli.git
-cd enterprise-cli
-
-# Build the CLI
-go build -o enterprise
-
-# Optionally, move to a directory in your PATH
-mv enterprise /usr/local/bin/
 ```
-
-## Usage
-
-### AWS Deployment
-
-```bash
-# Prepare AWS deployment - this will:
-# 1. Clone a template repository
-# 2. Create a new GitHub repository
-# 3. Set up AWS credentials as repository secrets
-# 4. Push initial files to the new repository
-enterprise prepare aws
-
-# Deploy your AWS infrastructure
-enterprise deploy aws
-
-# Enable verbose logging
-enterprise --verbose prepare aws
+curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/Blazity/enterprise-cli/refs/heads/main/install.sh | sh
 ```
-
-### Requirements
-
-- Git must be installed
-- GitHub CLI (`gh`) must be installed and authenticated
-- For AWS provider: AWS credentials (Access Key ID and Secret Access Key)
-
-## Technologies
-
-- [Cobra](https://github.com/spf13/cobra) - Command structure and CLI framework
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [Huh](https://github.com/charmbracelet/huh) - Interactive form components
-- [Lipgloss](https://github.com/charmbracelet/lipgloss) - Terminal styling
-- [GitHub CLI](https://cli.github.com/) - GitHub integration
-- [Terraform Exec](https://github.com/hashicorp/terraform-exec) - Terraform integration
-
-## Adding New Providers
-
-To add a new provider:
-
-1. Create a new package in `pkg/provider/<provider-name>`
-2. Implement the `Provider` interface
-3. Register the provider in the init function
-4. Import the provider package in `cmd/enterprise/enterprise.go`
 
 ## License
 
 MIT
+
+[docs]: https://docs.blazity.com/next-enterprise/deployments/enterprise-cli
+[next-enterprise]: https://github.com/Blazity/next-enterprise
