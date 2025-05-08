@@ -7,13 +7,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/blazity/enterprise-cli/pkg/codemod"
 	"github.com/blazity/enterprise-cli/pkg/github"
 	"github.com/blazity/enterprise-cli/pkg/logging"
@@ -38,8 +34,10 @@ func (f *AwsProviderFactory) Create() provider.Provider {
 type AwsProvider struct {
 	cancel          context.CancelFunc
 	region          string
+	bucketName      string
 	accessKeyID     string
 	secretAccessKey string
+	projectName     string
 	repositoryName  string
 	organization    string
 	isPrivate       bool
@@ -104,6 +102,47 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	form := huh.NewForm(
 		huh.NewGroup(
+
+			huh.NewInput().
+				Title("AWS Bucket Name").
+				Description("The AWS bucket name to store Terraform state").
+				Placeholder("next-enterprise-terraform").
+				Value(&p.bucketName).
+				Validate(func(str string) error {
+					// Ensure name starts with a letter and contains only lowercase letters and hyphens
+					matched, err := regexp.MatchString("^[a-z][a-z-]*$", str)
+					if err != nil {
+						return fmt.Errorf("failed to validate bucket name: %w", err)
+					}
+					if !matched {
+						return errors.New("Bucket name must start with a letter and contain only lowercase letters and hyphens")
+					}
+					if len(str) > 16 {
+						return errors.New("Bucket name must be no more than 16 characters")
+					}
+					return nil
+				}),
+
+			huh.NewInput().
+				Title("AWS Project Name").
+				Description("The name of the AWS project").
+				Placeholder("my-aws-project").
+				Value(&p.projectName).
+				Validate(func(str string) error {
+					// Ensure name starts with a letter and contains only lowercase letters and hyphens
+					matched, err := regexp.MatchString("^[a-z][a-z-]*$", str)
+					if err != nil {
+						return fmt.Errorf("failed to validate project name: %w", err)
+					}
+					if !matched {
+						return errors.New("Project name must start with a letter and contain only lowercase letters and hyphens")
+					}
+					if len(str) > 16 {
+						return errors.New("Project name must be no more than 16 characters")
+					}
+					return nil
+				}),
+
 			huh.NewSelect[string]().
 				Title("AWS Region").
 				Description("The AWS region to deploy").
@@ -274,6 +313,8 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	hclCodemodCfg := codemod.NewDefaultHclCodemodConfig()
 	hclCodemodCfg.SourceDir = targetTerraformDir
 	hclCodemodCfg.Region = p.region
+	hclCodemodCfg.BucketName = p.bucketName
+	hclCodemodCfg.ProjectName = p.projectName
 
 	if err := codemod.RunHclCodemod(hclCodemodCfg); err != nil {
 		logging.GetLogger().Error("Failed to apply HCL codemod", "error", err)
@@ -427,7 +468,9 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	setRegionArgs := []string{"secret", "set", "AWS_REGION", "--body", p.region, "--repo", repoFullName}
+	logging.GetLogger().Info(fmt.Sprintf("Set %s secrets as GitHub Secrets", ui.LegibleProviderName("aws")), "secrets", []string{"AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
+
+	setRegionArgs := []string{"variable", "set", "AWS_REGION", "--body", p.region, "--repo", repoFullName}
 	_, stderr, err = gh.Exec(setRegionArgs...)
 	if err != nil {
 		logging.GetLogger().Error(fmt.Sprintf("Failed to set AWS_REGION: %s", err))
@@ -436,9 +479,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info(fmt.Sprintf("Set %s secrets as GitHub Secrets", ui.LegibleProviderName("aws")), "secrets", []string{"AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
-
-	setRedisUrlArgs := []string{"variable", "set", "REDIS_URL", "--body", "redis://next-enterprise-iac-dev-redis-cluster.rwzcut.0001.euw2.cache.amazonaws.com:6379", "--repo", repoFullName}
+	setRedisUrlArgs := []string{"variable", "set", "REDIS_URL", "--body", fmt.Sprintf("redis://%s-dev-redis-cluster.rwzcut.0001.euw2.cache.amazonaws.com:6379", p.projectName), "--repo", repoFullName}
 
 	_, stderr, err = gh.Exec(setRedisUrlArgs...)
 	if err != nil {
@@ -448,7 +489,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	setS3StorybookBucketName := []string{"variable", "set", "S3_STORYBOOK_BUCKET_NAME", "--body", "next-enterprise-iac-storybook", "--repo", repoFullName}
+	setS3StorybookBucketName := []string{"variable", "set", "S3_STORYBOOK_BUCKET_NAME", "--body", fmt.Sprintf("%s-storybook", p.projectName), "--repo", repoFullName}
 
 	_, stderr, err = gh.Exec(setS3StorybookBucketName...)
 	if err != nil {
@@ -458,7 +499,17 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info("Set variables as GitHub Env Vars", "variables", []string{"S3_STORYBOOK_BUCKET_NAME", "REDIS_URL"})
+	setBucketNameArgs := []string{"variable", "set", "AWS_TERRAFORM_BUCKET_NAME", "--body", p.bucketName, "--repo", repoFullName}
+
+	_, stderr, err = gh.Exec(setBucketNameArgs...)
+	if err != nil {
+		logging.GetLogger().Error(fmt.Sprintf("Failed to set AWS_TERRAFORM_BUCKET_NAME: %s", err))
+		logging.GetLogger().Error(stderr.String())
+		cleanup(p)
+		return err
+	}
+
+	logging.GetLogger().Info("Set variables as GitHub Env Vars", "variables", []string{"S3_STORYBOOK_BUCKET_NAME", "REDIS_URL", "AWS_REGION", "AWS_TERRAFORM_BUCKET_NAME"})
 
 	enableActionsArgs := []string{
 		"api",
@@ -525,65 +576,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	// Clear activeBranch so cleanup won't try branch operations again
 	p.activeBranch = ""
-
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(p.region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(p.accessKeyID, p.secretAccessKey, "")),
-	)
-	if err != nil {
-		logging.GetLogger().Error("Failed to load AWS SDK config", "error", err)
-		return err
-	}
-
-	s3Client := s3.NewFromConfig(cfg)
-
-	// List existing buckets
-	listOutput, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
-	if err != nil {
-		logging.GetLogger().Error("Failed to list S3 buckets", "error", err)
-		return err
-	}
-
-	bucketName := "next-enterprise-terraform"
-	bucketExists := false
-
-	for _, b := range listOutput.Buckets {
-		if aws.ToString(b.Name) == bucketName {
-			bucketExists = true
-			// Validate bucket region
-			locOutput, err := s3Client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: b.Name})
-			if err != nil {
-				logging.GetLogger().Error("Failed to get bucket location", "name", bucketName, "error", err)
-				return err
-			}
-			foundRegion := ""
-			if locOutput.LocationConstraint == "" {
-				foundRegion = "us-east-1"
-			} else {
-				foundRegion = string(locOutput.LocationConstraint)
-			}
-			if foundRegion != p.region {
-				logging.GetLogger().Error("Bucket exists in wrong region", "name", bucketName, "foundRegion", foundRegion, "expectedRegion", p.region)
-				return fmt.Errorf("bucket %s exists in region %s, expected %s", bucketName, foundRegion, p.region)
-			}
-			break
-		}
-	}
-
-	if !bucketExists {
-		// Create the bucket in the specified region
-		_, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
-			Bucket: aws.String(bucketName),
-			CreateBucketConfiguration: &types.CreateBucketConfiguration{
-				LocationConstraint: types.BucketLocationConstraint(p.region),
-			},
-		})
-		if err != nil {
-			logging.GetLogger().Error("Failed to create S3 bucket", "name", bucketName, "error", err)
-			return err
-		}
-		logging.GetLogger().Info("Created S3 bucket", "name", bucketName, "region", p.region)
-	}
 
 	cleanup(p)
 

@@ -16,8 +16,10 @@ import (
 // HclCodemodConfig holds configuration for the HCL codemod
 // It specifies the source directory containing Terraform files and the new region to set.
 type HclCodemodConfig struct {
-	SourceDir string
-	Region    string
+	SourceDir   string
+	Region      string
+	BucketName  string
+	ProjectName string
 }
 
 // NewDefaultHclCodemodConfig returns a default HclCodemodConfig
@@ -42,6 +44,11 @@ func RunHclCodemod(cfg *HclCodemodConfig) error {
 	if err := cfg.ModifyBackend(); err != nil {
 		return fmt.Errorf("failed to modify backend.tf: %w", err)
 	}
+	if cfg.ProjectName != "" {
+		if err := cfg.ModifyLocals(); err != nil {
+			return fmt.Errorf("failed to modify locals in main.tf: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -52,6 +59,7 @@ func parseHclFlags() (*HclCodemodConfig, error) {
 	fs.SetOutput(io.Discard)
 	fs.StringVar(&cfg.SourceDir, "source", "", "Path to Terraform source directory (required)")
 	fs.StringVar(&cfg.Region, "region", "", "AWS region to set in backend.tf (required)")
+	fs.StringVar(&cfg.ProjectName, "project-name", "", "Project name to set in locals in main.tf (optional)")
 
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return nil, fmt.Errorf("error parsing flags: %w", err)
@@ -92,6 +100,9 @@ func (cfg *HclCodemodConfig) ModifyBackend() error {
 		return err
 	}
 
+	if cfg.BucketName != "" {
+		updateBucketAttribute(backendBlock, cfg.BucketName)
+	}
 	updateRegionAttribute(backendBlock, cfg.Region)
 
 	if err := writeBackendFile(backendPath, file); err != nil {
@@ -119,10 +130,40 @@ func updateRegionAttribute(block *hclwrite.Block, region string) {
 	block.Body().SetAttributeValue("region", cty.StringVal(region))
 }
 
+// updateBucketAttribute sets the bucket attribute on the backend block
+func updateBucketAttribute(block *hclwrite.Block, bucket string) {
+	block.Body().SetAttributeValue("bucket", cty.StringVal(bucket))
+}
+
 // writeBackendFile writes the modified HCL file back to disk
 func writeBackendFile(path string, f *hclwrite.File) error {
 	if err := ioutil.WriteFile(path, f.Bytes(), 0644); err != nil {
 		return fmt.Errorf("error writing updated backend.tf: %w", err)
+	}
+	return nil
+}
+
+// ModifyLocals implements the ModifyLocals method for the HclCodemodConfig struct
+func (cfg *HclCodemodConfig) ModifyLocals() error {
+	localsPath := filepath.Join(cfg.SourceDir, "dev", "main.tf")
+	src, err := ioutil.ReadFile(localsPath)
+	if err != nil {
+		return fmt.Errorf("error reading main.tf: %w", err)
+	}
+
+	file, diags := hclwrite.ParseConfig(src, localsPath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return fmt.Errorf("error parsing main.tf: %s", diags.Error())
+	}
+
+	localsBlock := file.Body().FirstMatchingBlock("locals", nil)
+	if localsBlock == nil {
+		return fmt.Errorf("locals block not found in %s", localsPath)
+	}
+	localsBlock.Body().SetAttributeValue("project_name", cty.StringVal(cfg.ProjectName))
+
+	if err := ioutil.WriteFile(localsPath, file.Bytes(), 0644); err != nil {
+		return fmt.Errorf("error writing updated main.tf: %w", err)
 	}
 	return nil
 }
