@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -43,6 +44,12 @@ func RunHclCodemod(cfg *HclCodemodConfig) error {
 	}
 	if err := cfg.ModifyBackend(); err != nil {
 		return fmt.Errorf("failed to modify backend.tf: %w", err)
+	}
+	if err := cfg.ModifyProviderRegion(); err != nil {
+		return fmt.Errorf("failed to modify provider regions in main.tf: %w", err)
+	}
+	if err := cfg.ModifyVpcAvailabilityZones(); err != nil {
+		return fmt.Errorf("failed to modify availability zones in module/vpc.tf: %w", err)
 	}
 	if cfg.ProjectName != "" {
 		if err := cfg.ModifyLocals(); err != nil {
@@ -164,6 +171,81 @@ func (cfg *HclCodemodConfig) ModifyLocals() error {
 
 	if err := ioutil.WriteFile(localsPath, file.Bytes(), 0644); err != nil {
 		return fmt.Errorf("error writing updated main.tf: %w", err)
+	}
+	return nil
+}
+
+// ModifyProviderRegion updates the region attribute for non-aliased aws provider blocks in main.tf
+func (cfg *HclCodemodConfig) ModifyProviderRegion() error {
+	mainPath := filepath.Join(cfg.SourceDir, "dev", "main.tf")
+	src, err := ioutil.ReadFile(mainPath)
+	if err != nil {
+		return fmt.Errorf("error reading main.tf: %w", err)
+	}
+
+	file, diags := hclwrite.ParseConfig(src, mainPath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return fmt.Errorf("error parsing main.tf: %s", diags.Error())
+	}
+
+	for _, block := range file.Body().Blocks() {
+		if block.Type() == "provider" && len(block.Labels()) == 1 && block.Labels()[0] == "aws" {
+			if block.Body().GetAttribute("alias") != nil {
+				continue
+			}
+			block.Body().SetAttributeValue("region", cty.StringVal(cfg.Region))
+		}
+	}
+
+	if err := ioutil.WriteFile(mainPath, file.Bytes(), 0644); err != nil {
+		return fmt.Errorf("error writing updated main.tf: %w", err)
+	}
+	return nil
+}
+
+// ModifyVpcAvailabilityZones reads module/vpc.tf and updates availability_zone attributes based on cfg.Region
+func (cfg *HclCodemodConfig) ModifyVpcAvailabilityZones() error {
+	vpcPath := filepath.Join(cfg.SourceDir, "module", "vpc.tf")
+	src, err := ioutil.ReadFile(vpcPath)
+	if err != nil {
+		return fmt.Errorf("error reading vpc.tf: %w", err)
+	}
+
+	file, diags := hclwrite.ParseConfig(src, vpcPath, hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return fmt.Errorf("error parsing vpc.tf: %s", diags.Error())
+	}
+
+	for _, block := range file.Body().Blocks() {
+		if attr := block.Body().GetAttribute("availability_zone"); attr != nil {
+			expr := attr.Expr()
+			tokens := expr.BuildTokens(nil)
+			if len(tokens) == 0 {
+				continue
+			}
+			var rawBytes []byte
+			for _, tk := range tokens {
+				rawBytes = append(rawBytes, tk.Bytes...)
+			}
+			raw := string(rawBytes)
+			oldVal := raw
+			if unq, err := strconv.Unquote(raw); err == nil {
+				oldVal = unq
+			}
+			if len(oldVal) == 0 {
+				continue
+			}
+			last := oldVal[len(oldVal)-1]
+			if last < 'a' || last > 'z' {
+				continue
+			}
+			newVal := cfg.Region + string(last)
+			block.Body().SetAttributeValue("availability_zone", cty.StringVal(newVal))
+		}
+	}
+
+	if err := ioutil.WriteFile(vpcPath, file.Bytes(), 0644); err != nil {
+		return fmt.Errorf("error writing updated vpc.tf: %w", err)
 	}
 	return nil
 }
