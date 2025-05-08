@@ -9,6 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/blazity/enterprise-cli/pkg/codemod"
 	"github.com/blazity/enterprise-cli/pkg/github"
 	"github.com/blazity/enterprise-cli/pkg/logging"
@@ -433,7 +438,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 
 	logging.GetLogger().Info(fmt.Sprintf("Set %s secrets as GitHub Secrets", ui.LegibleProviderName("aws")), "secrets", []string{"AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"})
 
-	setRedisUrlArgs := []string{"variable", "set", "REDIS_URL", "--body", "redis://next-enterprise-terraform-dev-redis-cluster.rwzcut.0001.euw2.cache.amazonaws.com:6379", "--repo", repoFullName}
+	setRedisUrlArgs := []string{"variable", "set", "REDIS_URL", "--body", "redis://next-enterprise-iac-dev-redis-cluster.rwzcut.0001.euw2.cache.amazonaws.com:6379", "--repo", repoFullName}
 
 	_, stderr, err = gh.Exec(setRedisUrlArgs...)
 	if err != nil {
@@ -443,7 +448,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	setS3StorybookBucketName := []string{"variable", "set", "S3_STORYBOOK_BUCKET_NAME", "--body", "next-enterprise-terraform-storybook", "--repo", repoFullName}
+	setS3StorybookBucketName := []string{"variable", "set", "S3_STORYBOOK_BUCKET_NAME", "--body", "next-enterprise-iac-storybook", "--repo", repoFullName}
 
 	_, stderr, err = gh.Exec(setS3StorybookBucketName...)
 	if err != nil {
@@ -521,6 +526,65 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 	// Clear activeBranch so cleanup won't try branch operations again
 	p.activeBranch = ""
 
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(p.region),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(p.accessKeyID, p.secretAccessKey, "")),
+	)
+	if err != nil {
+		logging.GetLogger().Error("Failed to load AWS SDK config", "error", err)
+		return err
+	}
+
+	s3Client := s3.NewFromConfig(cfg)
+
+	// List existing buckets
+	listOutput, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
+	if err != nil {
+		logging.GetLogger().Error("Failed to list S3 buckets", "error", err)
+		return err
+	}
+
+	bucketName := "next-enterprise-terraform"
+	bucketExists := false
+
+	for _, b := range listOutput.Buckets {
+		if aws.ToString(b.Name) == bucketName {
+			bucketExists = true
+			// Validate bucket region
+			locOutput, err := s3Client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: b.Name})
+			if err != nil {
+				logging.GetLogger().Error("Failed to get bucket location", "name", bucketName, "error", err)
+				return err
+			}
+			foundRegion := ""
+			if locOutput.LocationConstraint == "" {
+				foundRegion = "us-east-1"
+			} else {
+				foundRegion = string(locOutput.LocationConstraint)
+			}
+			if foundRegion != p.region {
+				logging.GetLogger().Error("Bucket exists in wrong region", "name", bucketName, "foundRegion", foundRegion, "expectedRegion", p.region)
+				return fmt.Errorf("bucket %s exists in region %s, expected %s", bucketName, foundRegion, p.region)
+			}
+			break
+		}
+	}
+
+	if !bucketExists {
+		// Create the bucket in the specified region
+		_, err := s3Client.CreateBucket(ctx, &s3.CreateBucketInput{
+			Bucket: aws.String(bucketName),
+			CreateBucketConfiguration: &types.CreateBucketConfiguration{
+				LocationConstraint: types.BucketLocationConstraint(p.region),
+			},
+		})
+		if err != nil {
+			logging.GetLogger().Error("Failed to create S3 bucket", "name", bucketName, "error", err)
+			return err
+		}
+		logging.GetLogger().Info("Created S3 bucket", "name", bucketName, "region", p.region)
+	}
+
 	cleanup(p)
 
 	return nil
@@ -549,8 +613,9 @@ func (p *AwsProvider) DeployWithContext(ctx context.Context) error {
 		return fmt.Errorf("operation cancelled by user before deployment started")
 	}
 
-	logging.GetLogger().Info("AWS deployment completed successfully")
+	// Load AWS SDK configuration with static credentials and region
 
+	logging.GetLogger().Info("AWS deployment completed successfully")
 	return nil
 }
 
