@@ -147,42 +147,42 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 				Title("AWS Region").
 				Description("The AWS region to deploy").
 				Options(
-					huh.NewOption("US East (N. Virginia)", "us-east-1"),
-					huh.NewOption("US East (Ohio)", "us-east-2"),
-					huh.NewOption("US West (N. California)", "us-west-1"),
-					huh.NewOption("US West (Oregon)", "us-west-2"),
-					huh.NewOption("Canada (Central)", "ca-central-1"),
-					huh.NewOption("Canada West (Calgary)", "ca-west-1"),
-					huh.NewOption("AWS GovCloud (US-East)", "us-gov-east-1"),
-					huh.NewOption("AWS GovCloud (US-West)", "us-gov-west-1"),
-					huh.NewOption("Europe (Ireland)", "eu-west-1"),
-					huh.NewOption("Europe (London)", "eu-west-2"),
-					huh.NewOption("Europe (Paris)", "eu-west-3"),
-					huh.NewOption("Europe (Frankfurt)", "eu-central-1"),
-					huh.NewOption("Europe (Zurich)", "eu-central-2"),
-					huh.NewOption("Europe (Stockholm)", "eu-north-1"),
-					huh.NewOption("Europe (Milan)", "eu-south-1"),
-					huh.NewOption("Europe (Spain)", "eu-south-2"),
-					huh.NewOption("Africa (Cape Town)", "af-south-1"),
-					huh.NewOption("Asia Pacific (Hong Kong)", "ap-east-1"),
-					huh.NewOption("Asia Pacific (Tokyo)", "ap-northeast-1"),
-					huh.NewOption("Asia Pacific (Seoul)", "ap-northeast-2"),
-					huh.NewOption("Asia Pacific (Osaka)", "ap-northeast-3"),
-					huh.NewOption("Asia Pacific (Mumbai)", "ap-south-1"),
-					huh.NewOption("Asia Pacific (Hyderabad)", "ap-south-2"),
-					huh.NewOption("Asia Pacific (Singapore)", "ap-southeast-1"),
-					huh.NewOption("Asia Pacific (Sydney)", "ap-southeast-2"),
-					huh.NewOption("Asia Pacific (Jakarta)", "ap-southeast-3"),
-					huh.NewOption("Asia Pacific (Melbourne)", "ap-southeast-4"),
-					huh.NewOption("Asia Pacific (Malaysia)", "ap-southeast-5"),
-					huh.NewOption("Asia Pacific (Thailand)", "ap-southeast-7"),
-					huh.NewOption("China (Beijing)", "cn-north-1"),
-					huh.NewOption("China (Ningxia)", "cn-northwest-1"),
-					huh.NewOption("Israel (Tel Aviv)", "il-central-1"),
-					huh.NewOption("Middle East (UAE)", "me-central-1"),
-					huh.NewOption("Middle East (Bahrain)", "me-south-1"),
-					huh.NewOption("Mexico (Central)", "mx-central-1"),
-					huh.NewOption("South America (Sao Paulo)", "sa-east-1"),
+					huh.NewOption("US East (N. Virginia) (us-east-1)", "us-east-1"),
+					huh.NewOption("US East (Ohio) (us-east-2)", "us-east-2"),
+					huh.NewOption("US West (N. California) (us-west-1)", "us-west-1"),
+					huh.NewOption("US West (Oregon) (us-west-2)", "us-west-2"),
+					huh.NewOption("Canada (Central) (ca-central-1)", "ca-central-1"),
+					huh.NewOption("Canada West (Calgary) (ca-west-1)", "ca-west-1"),
+					huh.NewOption("AWS GovCloud (US-East) (us-gov-east-1)", "us-gov-east-1"),
+					huh.NewOption("AWS GovCloud (US-West) (us-gov-west-1)", "us-gov-west-1"),
+					huh.NewOption("Europe (Ireland) (eu-west-1)", "eu-west-1"),
+					huh.NewOption("Europe (London) (eu-west-2)", "eu-west-2"),
+					huh.NewOption("Europe (Paris) (eu-west-3)", "eu-west-3"),
+					huh.NewOption("Europe (Frankfurt) (eu-central-1)", "eu-central-1"),
+					huh.NewOption("Europe (Zurich) (eu-central-2)", "eu-central-2"),
+					huh.NewOption("Europe (Stockholm) (eu-north-1)", "eu-north-1"),
+					huh.NewOption("Europe (Milan) (eu-south-1)", "eu-south-1"),
+					huh.NewOption("Europe (Spain) (eu-south-2)", "eu-south-2"),
+					huh.NewOption("Africa (Cape Town) (af-south-1)", "af-south-1"),
+					huh.NewOption("Asia Pacific (Hong Kong) (ap-east-1)", "ap-east-1"),
+					huh.NewOption("Asia Pacific (Tokyo) (ap-northeast-1)", "ap-northeast-1"),
+					huh.NewOption("Asia Pacific (Seoul) (ap-northeast-2)", "ap-northeast-2"),
+					huh.NewOption("Asia Pacific (Osaka) (ap-northeast-3)", "ap-northeast-3"),
+					huh.NewOption("Asia Pacific (Mumbai) (ap-south-1)", "ap-south-1"),
+					huh.NewOption("Asia Pacific (Hyderabad) (ap-south-2)", "ap-south-2"),
+					huh.NewOption("Asia Pacific (Singapore) (ap-southeast-1)", "ap-southeast-1"),
+					huh.NewOption("Asia Pacific (Sydney) (ap-southeast-2)", "ap-southeast-2"),
+					huh.NewOption("Asia Pacific (Jakarta) (ap-southeast-3)", "ap-southeast-3"),
+					huh.NewOption("Asia Pacific (Melbourne) (ap-southeast-4)", "ap-southeast-4"),
+					huh.NewOption("Asia Pacific (Malaysia) (ap-southeast-5)", "ap-southeast-5"),
+					huh.NewOption("Asia Pacific (Thailand) (ap-southeast-7)", "ap-southeast-7"),
+					huh.NewOption("China (Beijing) (cn-north-1)", "cn-north-1"),
+					huh.NewOption("China (Ningxia) (cn-northwest-1)", "cn-northwest-1"),
+					huh.NewOption("Israel (Tel Aviv) (il-central-1)", "il-central-1"),
+					huh.NewOption("Middle East (UAE) (me-central-1)", "me-central-1"),
+					huh.NewOption("Middle East (Bahrain) (me-south-1)", "me-south-1"),
+					huh.NewOption("Mexico (Central) (mx-central-1)", "mx-central-1"),
+					huh.NewOption("South America (Sao Paulo) (sa-east-1)", "sa-east-1"),
 				).
 				Height(8).
 				Value(&p.region),
@@ -479,16 +479,6 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	setRedisUrlArgs := []string{"variable", "set", "REDIS_URL", "--body", fmt.Sprintf("redis://%s-dev-redis-cluster.rwzcut.0001.euw2.cache.amazonaws.com:6379", p.projectName), "--repo", repoFullName}
-
-	_, stderr, err = gh.Exec(setRedisUrlArgs...)
-	if err != nil {
-		logging.GetLogger().Error(fmt.Sprintf("Failed to set REDIS_URL: %s", err))
-		logging.GetLogger().Error(stderr.String())
-		cleanup(p)
-		return err
-	}
-
 	setS3StorybookBucketName := []string{"variable", "set", "S3_STORYBOOK_BUCKET_NAME", "--body", fmt.Sprintf("%s-storybook", p.projectName), "--repo", repoFullName}
 
 	_, stderr, err = gh.Exec(setS3StorybookBucketName...)
@@ -509,7 +499,7 @@ func (p *AwsProvider) PrepareWithContext(ctx context.Context) error {
 		return err
 	}
 
-	logging.GetLogger().Info("Set variables as GitHub Env Vars", "variables", []string{"S3_STORYBOOK_BUCKET_NAME", "REDIS_URL", "AWS_REGION", "AWS_TERRAFORM_BUCKET_NAME"})
+	logging.GetLogger().Info("Set variables as GitHub Env Vars", "variables", []string{"S3_STORYBOOK_BUCKET_NAME", "AWS_REGION", "AWS_TERRAFORM_BUCKET_NAME"})
 
 	enableActionsArgs := []string{
 		"api",
